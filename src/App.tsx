@@ -10,7 +10,7 @@ import { GameStats } from './types';
 
 function App() {
   const [game, setGame] = useState(new Chess());
-  const [moveFrom, setMoveFrom] = useState('');
+  const [moveFrom, setMoveFrom] = useState<Square | ''>('');
   const [rightClickedSquares, setRightClickedSquares] = useState<{ [key: string]: { background: string } | undefined }>({});
   const [moveSquares] = useState({});
   const [optionSquares, setOptionSquares] = useState({});
@@ -168,15 +168,15 @@ function App() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-800 to-gray-900 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-gradient-to-br from-gray-800 to-gray-900 flex items-center justify-center py-8 px-2 sm:px-4">
       {showUsernameModal && (
         <UsernameModal onSubmit={handleUsernameSubmit} />
       )}
 
-      <div className="bg-white p-8 rounded-xl shadow-2xl max-w-3xl w-full">
+      <div className="bg-white py-8 px-2 sm:px-8 rounded-xl shadow-2xl w-full max-w-3xl">
         <GameHeader stats={stats} onReset={resetGame} />
 
-        <div className="relative">
+        <div className="relative w-full">
           <ChessBoard
             game={game}
             onSquareClick={onSquareClick}
