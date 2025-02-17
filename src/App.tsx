@@ -13,7 +13,7 @@ function App() {
   const [game, setGame] = useState(new Chess());
   const [moveFrom, setMoveFrom] = useState<Square | null>(null);
   const [rightClickedSquares, setRightClickedSquares] = useState<{ [key: string]: { background: string } }>({});
-  const [moveSquares, setMoveSquares] = useState({});
+  const [moveSquares] = useState({});
   const [optionSquares, setOptionSquares] = useState({});
   const [gameOver, setGameOver] = useState(false);
   const [gameResult, setGameResult] = useState<'win' | 'loss' | 'draw' | null>(null);
@@ -92,13 +92,6 @@ function App() {
     setShowUsernameModal(false);
   };
 
-  function safeGameMutate(modify: (game: Chess) => void) {
-    setGame((g) => {
-      const update = new Chess(g.fen());
-      modify(update);
-      return update;
-    });
-  }
 
   const makeAIMove = useCallback(() => {
     if (isReplaying) return;
