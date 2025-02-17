@@ -1,7 +1,12 @@
 import { useState, useCallback, useEffect } from 'react';
-import { Chessboard } from 'react-chessboard';
 import { Chess, Square } from 'chess.js';
-import { Trophy, RotateCcw, Brain } from 'lucide-react';
+import { ChessBoard } from './components/ChessBoard';
+import { GameOverModal } from './components/GameOverModal';
+import { UsernameModal } from './components/UsernameModal';
+import { GameStatus } from './components/GameStatus';
+import { GameHeader } from './components/GameHeader';
+import { loadStats, saveStats } from './utils/localStorage';
+import { GameStats } from './types';
 
 function App() {
   const [game, setGame] = useState(new Chess());
@@ -10,6 +15,26 @@ function App() {
   const [moveSquares] = useState({});
   const [optionSquares, setOptionSquares] = useState({});
   const [gameOver, setGameOver] = useState(false);
+  const [gameResult, setGameResult] = useState<'win' | 'loss' | 'draw' | null>(null);
+  const [stats, setStats] = useState<GameStats | null>(loadStats());
+  const [showUsernameModal, setShowUsernameModal] = useState(!stats);
+
+  useEffect(() => {
+    if (stats) {
+      saveStats(stats);
+    }
+  }, [stats]);
+
+  const handleUsernameSubmit = (username: string) => {
+    setStats({
+      username,
+      wins: 0,
+      losses: 0,
+      draws: 0,
+      lastUpdated: Date.now()
+    });
+    setShowUsernameModal(false);
+  };
 
   function safeGameMutate(modify: (game: Chess) => void) {
     setGame((g) => {
@@ -21,7 +46,27 @@ function App() {
 
   const makeAIMove = useCallback(() => {
     const possibleMoves = game.moves();
-    if (game.isGameOver() || game.isDraw() || possibleMoves.length === 0) {
+    if (game.isGameOver()) {
+      setGameOver(true);
+      if (game.isDraw()) {
+        setGameResult('draw');
+        setStats(prev => prev ? {
+          ...prev,
+          draws: prev.draws + 1,
+          lastUpdated: Date.now()
+        } : null);
+      } else {
+        setGameResult(game.turn() === 'b' ? 'win' : 'loss');
+        setStats(prev => prev ? {
+          ...prev,
+          [game.turn() === 'b' ? 'wins' : 'losses']: prev[game.turn() === 'b' ? 'wins' : 'losses'] + 1,
+          lastUpdated: Date.now()
+        } : null);
+      }
+      return;
+    }
+
+    if (possibleMoves.length === 0) {
       setGameOver(true);
       return;
     }
@@ -116,68 +161,37 @@ function App() {
       game.reset();
     });
     setGameOver(false);
+    setGameResult(null);
     setMoveFrom('');
     setRightClickedSquares({});
     setOptionSquares({});
   }
 
   return (
-    <div className="min-h-screen bg-gray-100 flex items-center justify-center">
-      <div className="bg-white p-8 rounded-lg shadow-xl max-w-3xl w-full">
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center space-x-2">
-            <Brain className="w-6 h-6 text-blue-600" />
-            <h1 className="text-2xl font-bold text-gray-800">Chess vs AI</h1>
-          </div>
-          <button
-            onClick={resetGame}
-            className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-          >
-            <RotateCcw className="w-4 h-4" />
-            <span>Reset Game</span>
-          </button>
-        </div>
+    <div className="min-h-screen bg-gradient-to-br from-gray-800 to-gray-900 flex items-center justify-center p-4">
+      {showUsernameModal && (
+        <UsernameModal onSubmit={handleUsernameSubmit} />
+      )}
+
+      <div className="bg-white p-8 rounded-xl shadow-2xl max-w-3xl w-full">
+        <GameHeader stats={stats} onReset={resetGame} />
 
         <div className="relative">
-          <Chessboard
-            id="PlayVsAI"
-            animationDuration={200}
-            position={game.fen()}
+          <ChessBoard
+            game={game}
             onSquareClick={onSquareClick}
             onSquareRightClick={onSquareRightClick}
-            customBoardStyle={{
-              borderRadius: '4px',
-              boxShadow: '0 2px 10px rgba(0, 0, 0, 0.5)',
-            }}
-            customSquareStyles={{
-              ...moveSquares,
-              ...optionSquares,
-              ...rightClickedSquares,
-            }}
+            moveSquares={moveSquares}
+            optionSquares={optionSquares}
+            rightClickedSquares={rightClickedSquares}
           />
           
           {gameOver && (
-            <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center rounded-lg">
-              <div className="bg-white p-6 rounded-lg shadow-lg text-center">
-                <Trophy className="w-12 h-12 text-yellow-500 mx-auto mb-4" />
-                <h2 className="text-2xl font-bold mb-4">Game Over!</h2>
-                <button
-                  onClick={resetGame}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                >
-                  Play Again
-                </button>
-              </div>
-            </div>
+            <GameOverModal gameResult={gameResult} onReset={resetGame} />
           )}
         </div>
 
-        <div className="mt-4 text-gray-600">
-          <p className="text-sm">
-            {game.turn() === 'w' ? "Your turn (White)" : "AI's turn (Black)"}
-          </p>
-          {game.isCheck() && <p className="text-red-500 font-semibold">Check!</p>}
-        </div>
+        <GameStatus isCheck={game.isCheck()} turn={game.turn()} />
       </div>
     </div>
   );
