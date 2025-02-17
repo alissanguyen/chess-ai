@@ -23,6 +23,7 @@ export interface ChessBoardProps {
   rightClickedSquares: object;
   isReplaying?: boolean;
   isDarkMode: boolean;
+  boardOrientation: 'white' | 'black';
 }
 
 export interface GameOverModalProps {
@@ -41,6 +42,7 @@ export interface GameStatusProps {
   turn: string;
   isReplaying?: boolean;
   isDarkMode: boolean;
+  playerIsWhite: boolean;
 }
 
 export interface GameHeaderProps {
@@ -48,6 +50,7 @@ export interface GameHeaderProps {
   onReset: () => void;
   isDarkMode: boolean;
   onThemeToggle: () => void;
+  playerIsWhite: boolean;
 }
 
 export interface MoveLogProps {

@@ -11,9 +11,9 @@ import { GameStats } from './types';
 
 function App() {
   const [game, setGame] = useState(new Chess());
-  const [moveFrom, setMoveFrom] = useState<Square | ''>('');
-  const [rightClickedSquares, setRightClickedSquares] = useState<{ [key: string]: { background: string } | undefined }>({});
-  const [moveSquares] = useState({});
+  const [moveFrom, setMoveFrom] = useState<Square | null>(null);
+  const [rightClickedSquares, setRightClickedSquares] = useState<{ [key: string]: { background: string } }>({});
+  const [moveSquares, setMoveSquares] = useState({});
   const [optionSquares, setOptionSquares] = useState({});
   const [gameOver, setGameOver] = useState(false);
   const [gameResult, setGameResult] = useState<'win' | 'loss' | 'draw' | null>(null);
@@ -25,10 +25,18 @@ function App() {
     const saved = localStorage.getItem('chessTheme');
     return saved ? saved === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches;
   });
+  const [playerIsWhite, setPlayerIsWhite] = useState(() => {
+    const saved = localStorage.getItem('chessPlayerColor');
+    return saved ? saved === 'white' : true;
+  });
 
   useEffect(() => {
     localStorage.setItem('chessTheme', isDarkMode ? 'dark' : 'light');
   }, [isDarkMode]);
+
+  useEffect(() => {
+    localStorage.setItem('chessPlayerColor', playerIsWhite ? 'white' : 'black');
+  }, [playerIsWhite]);
 
   useEffect(() => {
     const savedState = loadGameState();
@@ -106,10 +114,11 @@ function App() {
           lastUpdated: Date.now()
         } : null);
       } else {
-        setGameResult(game.turn() === 'b' ? 'win' : 'loss');
+        const playerWon = (playerIsWhite && game.turn() === 'b') || (!playerIsWhite && game.turn() === 'w');
+        setGameResult(playerWon ? 'win' : 'loss');
         setStats(prev => prev ? {
           ...prev,
-          [game.turn() === 'b' ? 'wins' : 'losses']: prev[game.turn() === 'b' ? 'wins' : 'losses'] + 1,
+          [playerWon ? 'wins' : 'losses']: prev[playerWon ? 'wins' : 'losses'] + 1,
           lastUpdated: Date.now()
         } : null);
       }
@@ -125,20 +134,23 @@ function App() {
     const move = possibleMoves[randomIndex];
     
     try {
-      safeGameMutate((game) => {
-        game.move(move);
-      });
-      setMoves(prev => [...prev, move]);
+      const newGame = new Chess(game.fen());
+      const result = newGame.move(move);
+      if (result) {
+        setGame(newGame);
+        setMoves(prev => [...prev, result]);
+      }
     } catch (error) {
       console.error('Error making AI move:', error);
     }
-  }, [game, isReplaying]);
+  }, [game, isReplaying, playerIsWhite]);
 
   useEffect(() => {
-    if (game.turn() === 'b' && !isReplaying) {
+    const isPlayerTurn = (playerIsWhite && game.turn() === 'w') || (!playerIsWhite && game.turn() === 'b');
+    if (!isPlayerTurn && !isReplaying) {
       setTimeout(makeAIMove, 300);
     }
-  }, [game, makeAIMove, isReplaying]);
+  }, [game, makeAIMove, isReplaying, playerIsWhite]);
 
   function getMoveOptions(square: Square) {
     const moves = game.moves({
@@ -168,7 +180,8 @@ function App() {
   }
 
   function onSquareClick(square: Square) {
-    if (game.turn() === 'b' || gameOver || isReplaying) return;
+    const isPlayerTurn = (playerIsWhite && game.turn() === 'w') || (!playerIsWhite && game.turn() === 'b');
+    if (!isPlayerTurn || gameOver || isReplaying) return;
 
     setRightClickedSquares({});
 
@@ -178,31 +191,27 @@ function App() {
       return;
     }
 
-    if (moveFrom) {
-      try {
-        const gameCopy = new Chess(game.fen());
-        const move = gameCopy.move({
-          from: moveFrom,
-          to: square,
-          promotion: 'q'
-        });
-        
-        if (move === null) {
-          const hasMoves = getMoveOptions(square);
-          if (hasMoves) setMoveFrom(square);
-          return;
-        }
+    try {
+      const newGame = new Chess(game.fen());
+      const result = newGame.move({
+        from: moveFrom,
+        to: square,
+        promotion: 'q'
+      });
 
-        const newMove = game.move({ from: moveFrom, to: square, promotion: 'q' });
-        setGame(new Chess(game.fen()));
-        setMoves(prev => [...prev, newMove]);
-        setMoveFrom('');
+      if (result) {
+        setGame(newGame);
+        setMoves(prev => [...prev, result]);
+        setMoveFrom(null);
         setOptionSquares({});
-      } catch (error) {
-        console.error('Error making move:', error);
-        setMoveFrom('');
-        setOptionSquares({});
+      } else {
+        const hasMoves = getMoveOptions(square);
+        if (hasMoves) setMoveFrom(square);
       }
+    } catch (error) {
+      console.error('Error making move:', error);
+      setMoveFrom(null);
+      setOptionSquares({});
     }
   }
 
@@ -224,10 +233,11 @@ function App() {
     setGame(newGame);
     setGameOver(false);
     setGameResult(null);
-    setMoveFrom('');
+    setMoveFrom(null);
     setRightClickedSquares({});
     setOptionSquares({});
     setMoves([]);
+    setPlayerIsWhite(prev => !prev);
   }
 
   const toggleTheme = () => {
@@ -246,6 +256,7 @@ function App() {
           onReset={resetGame} 
           isDarkMode={isDarkMode} 
           onThemeToggle={toggleTheme}
+          playerIsWhite={playerIsWhite}
         />
 
         <div className="flex flex-col lg:flex-row gap-4 lg:gap-6">
@@ -260,6 +271,7 @@ function App() {
                 rightClickedSquares={rightClickedSquares}
                 isReplaying={isReplaying}
                 isDarkMode={isDarkMode}
+                boardOrientation={playerIsWhite ? 'white' : 'black'}
               />
               
               {gameOver && (
@@ -272,6 +284,7 @@ function App() {
               turn={game.turn()} 
               isReplaying={isReplaying}
               isDarkMode={isDarkMode}
+              playerIsWhite={playerIsWhite}
             />
           </div>
 

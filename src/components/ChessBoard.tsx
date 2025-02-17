@@ -9,8 +9,8 @@ export function ChessBoard({
   moveSquares,
   optionSquares,
   rightClickedSquares,
-  isReplaying,
-  isDarkMode
+  isDarkMode,
+  boardOrientation
 }: ChessBoardProps) {
   const [boardWidth, setBoardWidth] = useState(Math.min(600, window.innerWidth));
 
@@ -40,6 +40,7 @@ export function ChessBoard({
           position={game.fen()}
           onSquareClick={onSquareClick}
           onSquareRightClick={onSquareRightClick}
+          boardOrientation={boardOrientation}
           customBoardStyle={{
             borderRadius: '4px',
             boxShadow: isDarkMode 

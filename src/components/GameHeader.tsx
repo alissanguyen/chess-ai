@@ -1,7 +1,7 @@
 import { Brain, RotateCcw, Sun, Moon } from 'lucide-react';
 import { GameHeaderProps } from '../types';
 
-export function GameHeader({ stats, onReset, isDarkMode, onThemeToggle }: GameHeaderProps) {
+export function GameHeader({ stats, onReset, isDarkMode, onThemeToggle, playerIsWhite }: GameHeaderProps) {
   return (
     <div className="flex flex-col sm:flex-row items-center gap-4 mb-6">
       <div className="flex items-center space-x-4">
@@ -12,7 +12,7 @@ export function GameHeader({ stats, onReset, isDarkMode, onThemeToggle }: GameHe
           </h1>
           {stats && (
             <p className={`text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-600'} text-center sm:text-left`}>
-              Playing as: {stats.username}
+              Playing as: {stats.username} ({playerIsWhite ? 'White' : 'Black'})
             </p>
           )}
         </div>
