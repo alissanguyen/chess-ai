@@ -1,11 +1,12 @@
 import { useState, useCallback, useEffect } from 'react';
-import { Chess, Square } from 'chess.js';
+import { Chess, Square, Move } from 'chess.js';
 import { ChessBoard } from './components/ChessBoard';
 import { GameOverModal } from './components/GameOverModal';
 import { UsernameModal } from './components/UsernameModal';
 import { GameStatus } from './components/GameStatus';
 import { GameHeader } from './components/GameHeader';
-import { loadStats, saveStats } from './utils/localStorage';
+import { MoveLog } from './components/MoveLog';
+import { loadStats, saveStats, loadGameState, saveGameState } from './utils/localStorage';
 import { GameStats } from './types';
 
 function App() {
@@ -18,6 +19,53 @@ function App() {
   const [gameResult, setGameResult] = useState<'win' | 'loss' | 'draw' | null>(null);
   const [stats, setStats] = useState<GameStats | null>(loadStats());
   const [showUsernameModal, setShowUsernameModal] = useState(!stats);
+  const [moves, setMoves] = useState<Move[]>([]);
+  const [isReplaying, setIsReplaying] = useState(false);
+  const [isDarkMode, setIsDarkMode] = useState(() => {
+    const saved = localStorage.getItem('chessTheme');
+    return saved ? saved === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches;
+  });
+
+  useEffect(() => {
+    localStorage.setItem('chessTheme', isDarkMode ? 'dark' : 'light');
+  }, [isDarkMode]);
+
+  useEffect(() => {
+    const savedState = loadGameState();
+    if (savedState) {
+      setIsReplaying(true);
+      const chess = new Chess();
+      const savedMoves: Move[] = [];
+      
+      let currentMove = 0;
+      const replayInterval = setInterval(() => {
+        if (currentMove < savedState.moves.length) {
+          try {
+            const move = chess.move(savedState.moves[currentMove]);
+            if (move) {
+              savedMoves.push(move);
+              setGame(new Chess(chess.fen()));
+              setMoves(savedMoves.slice());
+            }
+          } catch (error) {
+            console.error('Error replaying move:', error);
+          }
+          currentMove++;
+        } else {
+          clearInterval(replayInterval);
+          setIsReplaying(false);
+        }
+      }, 300);
+
+      return () => clearInterval(replayInterval);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!isReplaying && moves.length > 0) {
+      saveGameState(game.fen(), moves);
+    }
+  }, [game, moves, isReplaying]);
 
   useEffect(() => {
     if (stats) {
@@ -45,7 +93,9 @@ function App() {
   }
 
   const makeAIMove = useCallback(() => {
-    const possibleMoves = game.moves();
+    if (isReplaying) return;
+
+    const possibleMoves = game.moves({ verbose: true });
     if (game.isGameOver()) {
       setGameOver(true);
       if (game.isDraw()) {
@@ -74,16 +124,21 @@ function App() {
     const randomIndex = Math.floor(Math.random() * possibleMoves.length);
     const move = possibleMoves[randomIndex];
     
-    safeGameMutate((game) => {
-      game.move(move);
-    });
-  }, [game]);
+    try {
+      safeGameMutate((game) => {
+        game.move(move);
+      });
+      setMoves(prev => [...prev, move]);
+    } catch (error) {
+      console.error('Error making AI move:', error);
+    }
+  }, [game, isReplaying]);
 
   useEffect(() => {
-    if (game.turn() === 'b') {
+    if (game.turn() === 'b' && !isReplaying) {
       setTimeout(makeAIMove, 300);
     }
-  }, [game, makeAIMove]);
+  }, [game, makeAIMove, isReplaying]);
 
   function getMoveOptions(square: Square) {
     const moves = game.moves({
@@ -113,7 +168,7 @@ function App() {
   }
 
   function onSquareClick(square: Square) {
-    if (game.turn() === 'b' || gameOver) return;
+    if (game.turn() === 'b' || gameOver || isReplaying) return;
 
     setRightClickedSquares({});
 
@@ -124,29 +179,36 @@ function App() {
     }
 
     if (moveFrom) {
-      const gameCopy = new Chess(game.fen());
-      const move = gameCopy.move({
-        from: moveFrom,
-        to: square,
-        promotion: 'q'
-      });
-      
-      if (move === null) {
-        const hasMoves = getMoveOptions(square);
-        if (hasMoves) setMoveFrom(square);
-        return;
+      try {
+        const gameCopy = new Chess(game.fen());
+        const move = gameCopy.move({
+          from: moveFrom,
+          to: square,
+          promotion: 'q'
+        });
+        
+        if (move === null) {
+          const hasMoves = getMoveOptions(square);
+          if (hasMoves) setMoveFrom(square);
+          return;
+        }
+
+        const newMove = game.move({ from: moveFrom, to: square, promotion: 'q' });
+        setGame(new Chess(game.fen()));
+        setMoves(prev => [...prev, newMove]);
+        setMoveFrom('');
+        setOptionSquares({});
+      } catch (error) {
+        console.error('Error making move:', error);
+        setMoveFrom('');
+        setOptionSquares({});
       }
-
-      safeGameMutate((game) => {
-        game.move(move);
-      });
-
-      setMoveFrom('');
-      setOptionSquares({});
     }
   }
 
   function onSquareRightClick(square: Square) {
+    if (isReplaying) return;
+    
     const colour = 'rgba(0, 0, 255, 0.4)';
     setRightClickedSquares({
       ...rightClickedSquares,
@@ -157,41 +219,70 @@ function App() {
   }
 
   function resetGame() {
-    safeGameMutate((game) => {
-      game.reset();
-    });
+    localStorage.removeItem('chessGameState');
+    const newGame = new Chess();
+    setGame(newGame);
     setGameOver(false);
     setGameResult(null);
     setMoveFrom('');
     setRightClickedSquares({});
     setOptionSquares({});
+    setMoves([]);
   }
 
+  const toggleTheme = () => {
+    setIsDarkMode(prev => !prev);
+  };
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-800 to-gray-900 flex items-center justify-center py-8 px-2 sm:px-4">
+    <div className={`min-h-screen ${isDarkMode ? 'bg-black' : 'bg-gradient-to-br from-blue-50 to-white'} flex items-center justify-center px-2 py-4 sm:p-4`}>
       {showUsernameModal && (
-        <UsernameModal onSubmit={handleUsernameSubmit} />
+        <UsernameModal onSubmit={handleUsernameSubmit} isDarkMode={isDarkMode} />
       )}
 
-      <div className="bg-white py-8 px-2 sm:px-8 rounded-xl shadow-2xl w-full max-w-3xl">
-        <GameHeader stats={stats} onReset={resetGame} />
+      <div className={`${isDarkMode ? 'bg-gray-900' : 'bg-white'} p-4 sm:p-6 rounded-none sm:rounded-xl shadow-2xl w-full max-w-7xl`}>
+        <GameHeader 
+          stats={stats} 
+          onReset={resetGame} 
+          isDarkMode={isDarkMode} 
+          onThemeToggle={toggleTheme}
+        />
 
-        <div className="relative w-full">
-          <ChessBoard
-            game={game}
-            onSquareClick={onSquareClick}
-            onSquareRightClick={onSquareRightClick}
-            moveSquares={moveSquares}
-            optionSquares={optionSquares}
-            rightClickedSquares={rightClickedSquares}
-          />
-          
-          {gameOver && (
-            <GameOverModal gameResult={gameResult} onReset={resetGame} />
-          )}
+        <div className="flex flex-col lg:flex-row gap-4 lg:gap-6">
+          <div className="flex-1">
+            <div className="relative w-full">
+              <ChessBoard
+                game={game}
+                onSquareClick={onSquareClick}
+                onSquareRightClick={onSquareRightClick}
+                moveSquares={moveSquares}
+                optionSquares={optionSquares}
+                rightClickedSquares={rightClickedSquares}
+                isReplaying={isReplaying}
+                isDarkMode={isDarkMode}
+              />
+              
+              {gameOver && (
+                <GameOverModal gameResult={gameResult} onReset={resetGame} isDarkMode={isDarkMode} />
+              )}
+            </div>
+
+            <GameStatus 
+              isCheck={game.isCheck()} 
+              turn={game.turn()} 
+              isReplaying={isReplaying}
+              isDarkMode={isDarkMode}
+            />
+          </div>
+
+          <div className="lg:w-80">
+            <MoveLog 
+              moves={moves} 
+              currentPosition={game.fen()} 
+              isDarkMode={isDarkMode} 
+            />
+          </div>
         </div>
-
-        <GameStatus isCheck={game.isCheck()} turn={game.turn()} />
       </div>
     </div>
   );

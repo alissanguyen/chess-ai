@@ -8,25 +8,24 @@ export function ChessBoard({
   onSquareRightClick,
   moveSquares,
   optionSquares,
-  rightClickedSquares
+  rightClickedSquares,
+  isReplaying,
+  isDarkMode
 }: ChessBoardProps) {
-  const [boardWidth, setBoardWidth] = useState(Math.min(600, window.innerWidth - 64));
+  const [boardWidth, setBoardWidth] = useState(Math.min(600, window.innerWidth));
 
   useEffect(() => {
     function handleResize() {
       const container = document.querySelector('.chess-container');
       if (container) {
         const containerWidth = container.clientWidth;
-        // Subtract padding and ensure it's a number divisible by 8 for perfect squares
-        const newWidth = Math.floor((containerWidth - 32) / 8) * 8;
+        const newWidth = Math.floor(containerWidth / 8) * 8;
         setBoardWidth(Math.min(600, newWidth));
       }
     }
 
     window.addEventListener('resize', handleResize);
-    handleResize(); // Initial size
-    
-    // Additional call after a short delay to ensure proper sizing
+    handleResize();
     setTimeout(handleResize, 100);
 
     return () => window.removeEventListener('resize', handleResize);
@@ -34,7 +33,7 @@ export function ChessBoard({
 
   return (
     <div className="chess-container relative w-full">
-      <div className="relative rounded-lg overflow-hidden shadow-xl touch-none mx-auto" style={{ width: `${boardWidth}px` }}>
+      <div className="relative overflow-hidden touch-none mx-auto" style={{ width: `${boardWidth}px` }}>
         <Chessboard
           id="PlayVsAI"
           animationDuration={200}
@@ -42,7 +41,10 @@ export function ChessBoard({
           onSquareClick={onSquareClick}
           onSquareRightClick={onSquareRightClick}
           customBoardStyle={{
-            borderRadius: '8px',
+            borderRadius: '4px',
+            boxShadow: isDarkMode 
+              ? '0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -1px rgba(0, 0, 0, 0.2)'
+              : '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
           }}
           customSquareStyles={{
             ...moveSquares,
@@ -50,8 +52,12 @@ export function ChessBoard({
             ...rightClickedSquares,
           }}
           boardWidth={boardWidth}
-          customDarkSquareStyle={{ backgroundColor: '#b58863' }}
-          customLightSquareStyle={{ backgroundColor: '#f0d9b5' }}
+          customDarkSquareStyle={{ 
+            backgroundColor: '#b58863'
+          }}
+          customLightSquareStyle={{ 
+            backgroundColor: '#f0d9b5'
+          }}
         />
       </div>
     </div>
