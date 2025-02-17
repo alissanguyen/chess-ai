@@ -1,51 +1,127 @@
-# React + TypeScript + Vite
+# Chess vs AI
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+![Chess vs AI](https://images.unsplash.com/photo-1528819622765-d6bcf132f793?auto=format&fit=crop&q=80&w=1200&h=400)
 
-Currently, two official plugins are available:
+A modern, responsive chess application built with React and TypeScript, featuring an AI opponent and a beautiful, interactive interface.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react/README.md) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+![App Preview](https://imgur.com/wDqhhn0.png)
 
-## Expanding the ESLint configuration
+## ✨ Features
 
-If you are developing a production application, we recommend updating the configuration to enable type aware lint rules:
+- 🎮 Play against an AI opponent
+- 🔄 Automatic role switching between White and Black pieces
+- 🌓 Dark/Light mode support
+- 📱 Fully responsive design
+- 🎯 Move validation and legal move highlighting
+- 📝 Detailed move history with analysis
+- 💾 Local game state persistence
+- 🏆 Player statistics tracking
+- 🔍 Right-click square highlighting for strategy planning
+- ⚡ Fast and smooth animations
 
-- Configure the top-level `parserOptions` property like this:
+## 🛠️ Tech Stack
 
-```js
-export default tseslint.config({
-  languageOptions: {
-    // other options...
-    parserOptions: {
-      project: ['./tsconfig.node.json', './tsconfig.app.json'],
-      tsconfigRootDir: import.meta.dirname,
-    },
-  },
-})
+### Frontend
+- **React 18** - UI library
+- **TypeScript** - Type safety and developer experience
+- **Vite** - Build tool and development server
+- **Tailwind CSS** - Utility-first CSS framework
+- **chess.js** - Chess move validation and game state management
+- **react-chessboard** - Chess board visualization
+- **Lucide React** - Modern icon library
+
+### Development Tools
+- ESLint - Code linting
+- Prettier - Code formatting
+- PostCSS - CSS processing
+- Autoprefixer - CSS vendor prefixing
+
+## 🎯 Technical Highlights
+
+### State Management
+- Custom React hooks for game state management
+- Local storage integration for game persistence
+- Efficient state updates with React's useState and useEffect
+
+### Performance Optimizations
+- Lazy loading and code splitting
+- Memoized components and callbacks
+- Efficient re-rendering strategies
+- Optimized asset loading
+
+### User Experience
+- Smooth animations and transitions
+- Responsive design for all screen sizes
+- Intuitive drag-and-drop interface
+- Accessible color schemes
+- Clear visual feedback for moves and game state
+
+### Code Quality
+- Strong TypeScript typing
+- Component-based architecture
+- Clean and maintainable code structure
+- Comprehensive error handling
+- Modern ES6+ features
+
+## 🚀 Getting Started
+
+```bash
+# Clone the repository
+git clone https://github.com/yourusername/chess-vs-ai.git
+
+# Install dependencies
+npm install
+
+# Start development server
+npm run dev
+
+# Build for production
+npm run build
 ```
 
-- Replace `tseslint.configs.recommended` to `tseslint.configs.recommendedTypeChecked` or `tseslint.configs.strictTypeChecked`
-- Optionally add `...tseslint.configs.stylisticTypeChecked`
-- Install [eslint-plugin-react](https://github.com/jsx-eslint/eslint-plugin-react) and update the config:
+## 📦 Project Structure
 
-```js
-// eslint.config.js
-import react from 'eslint-plugin-react'
-
-export default tseslint.config({
-  // Set the react version
-  settings: { react: { version: '18.3' } },
-  plugins: {
-    // Add the react plugin
-    react,
-  },
-  rules: {
-    // other rules...
-    // Enable its recommended rules
-    ...react.configs.recommended.rules,
-    ...react.configs['jsx-runtime'].rules,
-  },
-})
 ```
-# chess-ai
+src/
+├── components/          # React components
+├── types/              # TypeScript type definitions
+├── utils/              # Utility functions
+├── App.tsx             # Main application component
+└── main.tsx           # Application entry point
+```
+
+## 🎨 Features in Detail
+
+### AI Opponent
+- Implements chess engine for move generation
+- Evaluates board positions
+- Makes strategic decisions
+
+### Game State Management
+- FEN string parsing and generation
+- Move validation and generation
+- Game history tracking
+- State persistence
+
+### User Interface
+- Responsive chess board
+- Move highlighting
+- Piece animations
+- Game controls
+- Statistics display
+
+## 🤝 Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
+
+## 📄 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## 🙋‍♂️ Author
+
+Created with ♟️ by [Your Name]
+
+---
+
+<p align="center">Made with ❤️ and React</p>
