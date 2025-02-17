@@ -1,7 +1,17 @@
-import { Brain, RotateCcw, Sun, Moon } from 'lucide-react';
+import { Brain, RotateCcw, Sun, Moon, LogOut } from 'lucide-react';
 import { GameHeaderProps } from '../types';
+import { UserAvatar } from './UserAvatar';
 
-export function GameHeader({ stats, onReset, isDarkMode, onThemeToggle, playerIsWhite }: GameHeaderProps) {
+export function GameHeader({ 
+  stats, 
+  onReset, 
+  isDarkMode, 
+  onThemeToggle, 
+  playerIsWhite,
+  user,
+  profile,
+  onSignOut
+}: GameHeaderProps) {
   return (
     <div className="flex flex-col sm:flex-row items-center gap-4 mb-6">
       <div className="flex items-center space-x-4">
@@ -10,10 +20,17 @@ export function GameHeader({ stats, onReset, isDarkMode, onThemeToggle, playerIs
           <h1 className={`text-2xl sm:text-3xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'} text-center sm:text-left`}>
             Chess vs AI
           </h1>
-          {stats && (
-            <p className={`text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-600'} text-center sm:text-left`}>
-              Playing as: {stats.username} ({playerIsWhite ? 'White' : 'Black'})
-            </p>
+          {user && profile && (
+            <div className="flex items-center gap-2 mt-1">
+              <UserAvatar 
+                username={profile.username} 
+                color={profile.avatar_color} 
+                size="sm" 
+              />
+              <p className={`text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+                {profile.username} ({playerIsWhite ? 'White' : 'Black'})
+              </p>
+            </div>
           )}
         </div>
       </div>
@@ -52,6 +69,19 @@ export function GameHeader({ stats, onReset, isDarkMode, onThemeToggle, playerIs
               <Moon className="w-5 h-5" />
             )}
           </button>
+          {user && (
+            <button
+              onClick={onSignOut}
+              className={`p-2 rounded-lg transition-all duration-200 ${
+                isDarkMode 
+                  ? 'bg-gray-800 text-red-400 hover:bg-gray-700' 
+                  : 'bg-gray-200 text-red-600 hover:bg-gray-300'
+              }`}
+              title="Sign Out"
+            >
+              <LogOut className="w-5 h-5" />
+            </button>
+          )}
         </div>
       </div>
     </div>

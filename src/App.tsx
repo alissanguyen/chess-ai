@@ -1,13 +1,21 @@
 import { useState, useCallback, useEffect } from 'react';
 import { Chess, Square, Move } from 'chess.js';
+import { User } from '@supabase/supabase-js';
 import { ChessBoard } from './components/ChessBoard';
 import { GameOverModal } from './components/GameOverModal';
-import { UsernameModal } from './components/UsernameModal';
+import { AuthModal } from './components/AuthModal';
+import { ProfileSetup } from './components/ProfileSetup';
 import { GameStatus } from './components/GameStatus';
 import { GameHeader } from './components/GameHeader';
 import { MoveLog } from './components/MoveLog';
 import { loadStats, saveStats, loadGameState, saveGameState } from './utils/localStorage';
 import { GameStats } from './types';
+import { supabase } from './lib/supabase';
+
+interface Profile {
+  username: string;
+  avatar_color: string;
+}
 
 function App() {
   const [game, setGame] = useState(new Chess());
@@ -18,7 +26,10 @@ function App() {
   const [gameOver, setGameOver] = useState(false);
   const [gameResult, setGameResult] = useState<'win' | 'loss' | 'draw' | null>(null);
   const [stats, setStats] = useState<GameStats | null>(loadStats());
-  const [showUsernameModal, setShowUsernameModal] = useState(!stats);
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  const [user, setUser] = useState<User | null>(null);
+  const [profile, setProfile] = useState<Profile | null>(null);
+  const [profileLoading, setProfileLoading] = useState(true);
   const [moves, setMoves] = useState<Move[]>([]);
   const [isReplaying, setIsReplaying] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(() => {
@@ -29,6 +40,50 @@ function App() {
     const saved = localStorage.getItem('chessPlayerColor');
     return saved ? saved === 'white' : true;
   });
+
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      setUser(session?.user ?? null);
+      if (event === 'SIGNED_IN') {
+        setShowAuthModal(false);
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    const fetchProfile = async () => {
+      if (!user) {
+        setProfileLoading(false);
+        return;
+      }
+
+      try {
+        setProfileLoading(true);
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('username, avatar_color')
+          .eq('id', user.id)
+          .maybeSingle();
+
+        if (error) throw error;
+        setProfile(data);
+      } catch (error) {
+        console.error('Error fetching profile:', error);
+      } finally {
+        setProfileLoading(false);
+      }
+    };
+
+    fetchProfile();
+  }, [user]);
+
+  useEffect(() => {
+    if (!user) {
+      setShowAuthModal(true);
+    }
+  }, [user]);
 
   useEffect(() => {
     localStorage.setItem('chessTheme', isDarkMode ? 'dark' : 'light');
@@ -81,17 +136,9 @@ function App() {
     }
   }, [stats]);
 
-  const handleUsernameSubmit = (username: string) => {
-    setStats({
-      username,
-      wins: 0,
-      losses: 0,
-      draws: 0,
-      lastUpdated: Date.now()
-    });
-    setShowUsernameModal(false);
+  const handleSignOut = async () => {
+    await supabase.auth.signOut();
   };
-
 
   const makeAIMove = useCallback(() => {
     if (isReplaying) return;
@@ -237,12 +284,41 @@ function App() {
     setIsDarkMode(prev => !prev);
   };
 
+  if (!user) {
+    return (
+      <div className={`min-h-screen ${isDarkMode ? 'bg-black' : 'bg-gradient-to-br from-blue-50 to-white'}`}>
+        {showAuthModal && (
+          <AuthModal 
+            isDarkMode={isDarkMode} 
+            onClose={() => setShowAuthModal(false)} 
+          />
+        )}
+      </div>
+    );
+  }
+
+  if (profileLoading) {
+    return (
+      <div className={`min-h-screen ${isDarkMode ? 'bg-black' : 'bg-gradient-to-br from-blue-50 to-white'} flex items-center justify-center`}>
+        <div className="animate-spin rounded-full h-12 w-12 border-4 border-blue-500 border-t-transparent"></div>
+      </div>
+    );
+  }
+
+  if (user && !profile) {
+    return (
+      <div className={`min-h-screen ${isDarkMode ? 'bg-black' : 'bg-gradient-to-br from-blue-50 to-white'}`}>
+        <ProfileSetup 
+          user={user} 
+          isDarkMode={isDarkMode} 
+          onComplete={() => window.location.reload()} 
+        />
+      </div>
+    );
+  }
+
   return (
     <div className={`min-h-screen ${isDarkMode ? 'bg-black' : 'bg-gradient-to-br from-blue-50 to-white'} flex items-center justify-center px-2 py-4 sm:p-4`}>
-      {showUsernameModal && (
-        <UsernameModal onSubmit={handleUsernameSubmit} isDarkMode={isDarkMode} />
-      )}
-
       <div className={`${isDarkMode ? 'bg-gray-900' : 'bg-white'} p-4 sm:p-6 rounded-none sm:rounded-xl shadow-2xl w-full max-w-7xl`}>
         <GameHeader 
           stats={stats} 
@@ -250,6 +326,9 @@ function App() {
           isDarkMode={isDarkMode} 
           onThemeToggle={toggleTheme}
           playerIsWhite={playerIsWhite}
+          user={user}
+          profile={profile}
+          onSignOut={handleSignOut}
         />
 
         <div className="flex flex-col lg:flex-row gap-4 lg:gap-6">

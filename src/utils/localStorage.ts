@@ -42,6 +42,7 @@ export const saveGameState = (fen: string, moves: any[]): void => {
     piece: move.piece,
     flags: move.flags,
     san: move.san,
+    captured: move.captured || undefined,
     lan: move.lan,
     before: move.before,
     after: move.after

@@ -1,4 +1,5 @@
 import { Chess, Square, Move } from 'chess.js';
+import { User } from '@supabase/supabase-js';
 
 export interface GameStats {
   username: string;
@@ -12,6 +13,11 @@ export interface GameState {
   fen: string;
   moves: Move[];
   lastUpdated: number;
+}
+
+export interface Profile {
+  username: string;
+  avatar_color: string;
 }
 
 export interface ChessBoardProps {
@@ -32,11 +38,6 @@ export interface GameOverModalProps {
   isDarkMode: boolean;
 }
 
-export interface UsernameModalProps {
-  onSubmit: (username: string) => void;
-  isDarkMode: boolean;
-}
-
 export interface GameStatusProps {
   isCheck: boolean;
   turn: string;
@@ -51,10 +52,18 @@ export interface GameHeaderProps {
   isDarkMode: boolean;
   onThemeToggle: () => void;
   playerIsWhite: boolean;
+  user: User | null;
+  profile: Profile | null;
+  onSignOut: () => void;
 }
 
 export interface MoveLogProps {
   moves: Move[];
   currentPosition: string;
+  isDarkMode: boolean;
+}
+
+export interface UsernameModalProps {
+  onSubmit: (username: string) => void;
   isDarkMode: boolean;
 }
