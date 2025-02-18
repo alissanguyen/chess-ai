@@ -18,6 +18,12 @@ export interface GameState {
 export interface Profile {
   username: string;
   avatar_color: string;
+  win_count: number;
+  loss_count: number;
+  draw_count: number;
+  longest_win_streak: number;
+  total_matches: number;
+  win_rate: number;
 }
 
 export interface ChessBoardProps {

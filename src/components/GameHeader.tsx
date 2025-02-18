@@ -1,9 +1,8 @@
-import { Brain, RotateCcw, Sun, Moon, LogOut } from 'lucide-react';
+import { Brain, RotateCcw, Sun, Moon, LogOut, Trophy, Target } from 'lucide-react';
 import { GameHeaderProps } from '../types';
 import { UserAvatar } from './UserAvatar';
 
 export function GameHeader({ 
-  stats, 
   onReset, 
   isDarkMode, 
   onThemeToggle, 
@@ -35,11 +34,28 @@ export function GameHeader({
         </div>
       </div>
       <div className="flex flex-col items-center gap-2 sm:ml-auto">
-        {stats && (
-          <div className={`text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-600'} flex gap-4`}>
-            <p>Wins: <span className="font-bold text-green-400">{stats.wins}</span></p>
-            <p>Losses: <span className="font-bold text-red-400">{stats.losses}</span></p>
-            <p>Draws: <span className="font-bold text-gray-400">{stats.draws}</span></p>
+        {profile && (
+          <div className={`text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-600'} grid grid-cols-2 sm:grid-cols-3 gap-4`}>
+            <div className="flex items-center gap-2">
+              <Trophy className="w-4 h-4 text-yellow-500" />
+              <div>
+                <p>Wins: <span className="font-bold text-green-400">{profile.win_count}</span></p>
+                <p className="text-xs opacity-75">Rate: {profile.win_rate}%</p>
+              </div>
+            </div>
+            <div>
+              <p>Losses: <span className="font-bold text-red-400">{profile.loss_count}</span></p>
+              <p>Draws: <span className="font-bold text-gray-400">{profile.draw_count}</span></p>
+            </div>
+            <div className="col-span-2 sm:col-span-1">
+              <div className="flex items-center gap-2">
+                <Target className="w-4 h-4 text-blue-500" />
+                <div>
+                  <p>Streak: <span className="font-bold">{profile.longest_win_streak}</span></p>
+                  <p className="text-xs opacity-75">Games: {profile.total_matches}</p>
+                </div>
+              </div>
+            </div>
           </div>
         )}
         <div className="flex items-center gap-2 w-full sm:w-auto">

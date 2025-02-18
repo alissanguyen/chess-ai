@@ -15,6 +15,12 @@ import { supabase } from './lib/supabase';
 interface Profile {
   username: string;
   avatar_color: string;
+  win_count: number;
+  loss_count: number;
+  draw_count: number;
+  longest_win_streak: number;
+  total_matches: number;
+  win_rate: number;
 }
 
 function App() {
@@ -25,7 +31,7 @@ function App() {
   const [optionSquares, setOptionSquares] = useState({});
   const [gameOver, setGameOver] = useState(false);
   const [gameResult, setGameResult] = useState<'win' | 'loss' | 'draw' | null>(null);
-  const [stats, setStats] = useState<GameStats | null>(loadStats());
+  const [stats] = useState<GameStats | null>(loadStats());
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
@@ -63,7 +69,7 @@ function App() {
         setProfileLoading(true);
         const { data, error } = await supabase
           .from('profiles')
-          .select('username, avatar_color')
+          .select('username, avatar_color, win_count, loss_count, draw_count, longest_win_streak, total_matches, win_rate')
           .eq('id', user.id)
           .maybeSingle();
 
@@ -140,6 +146,50 @@ function App() {
     await supabase.auth.signOut();
   };
 
+  const updateUserStats = async (result: 'win' | 'loss' | 'draw') => {
+    if (!user) return;
+
+    try {
+      const { data: currentStats } = await supabase
+        .from('profiles')
+        .select('win_count, loss_count, draw_count, longest_win_streak')
+        .eq('id', user.id)
+        .single();
+
+      if (!currentStats) return;
+
+      const updates = {
+        win_count: currentStats.win_count + (result === 'win' ? 1 : 0),
+        loss_count: currentStats.loss_count + (result === 'loss' ? 1 : 0),
+        draw_count: currentStats.draw_count + (result === 'draw' ? 1 : 0),
+        longest_win_streak: result === 'win' 
+          ? Math.max(currentStats.longest_win_streak, currentStats.win_count + 1)
+          : currentStats.longest_win_streak,
+        updated_at: new Date().toISOString()
+      };
+
+      const { error } = await supabase
+        .from('profiles')
+        .update(updates)
+        .eq('id', user.id);
+
+      if (error) throw error;
+
+      // Refresh profile data
+      const { data: updatedProfile } = await supabase
+        .from('profiles')
+        .select('username, avatar_color, win_count, loss_count, draw_count, longest_win_streak, total_matches, win_rate')
+        .eq('id', user.id)
+        .single();
+
+      if (updatedProfile) {
+        setProfile(updatedProfile);
+      }
+    } catch (error) {
+      console.error('Error updating stats:', error);
+    }
+  };
+
   const makeAIMove = useCallback(() => {
     if (isReplaying) return;
 
@@ -148,19 +198,11 @@ function App() {
       setGameOver(true);
       if (game.isDraw()) {
         setGameResult('draw');
-        setStats(prev => prev ? {
-          ...prev,
-          draws: prev.draws + 1,
-          lastUpdated: Date.now()
-        } : null);
+        updateUserStats('draw');
       } else {
         const playerWon = (playerIsWhite && game.turn() === 'b') || (!playerIsWhite && game.turn() === 'w');
         setGameResult(playerWon ? 'win' : 'loss');
-        setStats(prev => prev ? {
-          ...prev,
-          [playerWon ? 'wins' : 'losses']: prev[playerWon ? 'wins' : 'losses'] + 1,
-          lastUpdated: Date.now()
-        } : null);
+        updateUserStats(playerWon ? 'win' : 'loss');
       }
       return;
     }
