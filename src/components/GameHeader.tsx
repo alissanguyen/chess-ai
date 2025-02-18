@@ -1,4 +1,4 @@
-import { Brain, RotateCcw, Sun, Moon, LogOut, Trophy, Target, Medal, Percent, LogIn } from 'lucide-react';
+import { Brain, RotateCcw, Sun, Moon, LogOut, Trophy, Target, Percent, LogIn, Crown } from 'lucide-react';
 import { GameHeaderProps } from '../types';
 import { UserAvatar } from './UserAvatar';
 import { useState } from 'react';
@@ -47,7 +47,7 @@ export function GameHeader({
               {/* Mobile Stats */}
               <div className="grid grid-cols-3 gap-2 p-2 rounded-lg sm:hidden">
                 <div className="flex flex-col items-center justify-center p-2">
-                  <Trophy className="w-4 h-4 text-yellow-500 mb-1" />
+                  <Crown className="w-4 h-4 text-yellow-500 mb-1" />
                   <div className="text-center">
                     <p className="font-bold text-green-400">{profile.win_count}</p>
                     <p className="text-xs opacity-75">Wins</p>
@@ -72,7 +72,7 @@ export function GameHeader({
               {/* Desktop Stats */}
               <div className="hidden sm:grid grid-cols-3 gap-4 text-sm">
                 <div className="flex items-center gap-2">
-                  <Trophy className="w-4 h-4 text-yellow-500" />
+                  <Crown className="w-4 h-4 text-yellow-500" />
                   <div>
                     <p>Wins: <span className="font-bold text-green-400">{profile.win_count}</span></p>
                     <p className="text-xs opacity-75">Rate: {profile.win_rate}%</p>
@@ -117,8 +117,8 @@ export function GameHeader({
                   : 'bg-gray-200 text-yellow-600 hover:bg-gray-300'
               } rounded-lg transition-colors`}
             >
-              <Medal className="w-5 h-5" />
-              <span className="text-xs mt-1">Stats</span>
+              <Trophy className="w-5 h-5" />
+              <span className="text-xs mt-1">Ranking</span>
             </button>
 
             <button
@@ -197,7 +197,7 @@ export function GameHeader({
               }`}
               title="View Leaderboard"
             >
-              <Medal className="w-5 h-5" />
+              <Trophy className="w-5 h-5" />
             </button>
 
             <button
