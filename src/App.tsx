@@ -68,8 +68,17 @@ function App() {
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      setUser(session?.user ?? null);
-      if (event === 'SIGNED_IN') {
+      if (event === 'SIGNED_OUT') {
+        setUser(null);
+        setProfile(null);
+        setIsGuestMode(false);
+        setShowWelcomeModal(true);
+        setShowSignUpPrompt(false);
+        localStorage.removeItem('chessGameState');
+        localStorage.removeItem('chessStats');
+        resetGame();
+      } else if (event === 'SIGNED_IN') {
+        setUser(session?.user ?? null);
         setShowWelcomeModal(false);
         setIsGuestMode(false);
         setShowSignUpPrompt(false);
@@ -146,19 +155,33 @@ function App() {
 
   const handleSignOut = async () => {
     try {
-      await supabase.auth.signOut();
-    } catch (error) {
-      console.error('Error signing out:', error);
-    } finally {
-      // Always clean up local state
+      // First clear local storage
+      localStorage.removeItem('chessGameState');
+      localStorage.removeItem('chessStats');
+      localStorage.removeItem('supabase.auth.token');
+
+      // Then sign out from Supabase
+      const { error } = await supabase.auth.signOut();
+      if (error) throw error;
+
+      // Reset all state
       setUser(null);
       setProfile(null);
       setIsGuestMode(false);
       setShowWelcomeModal(true);
       setShowSignUpPrompt(false);
-      
+      resetGame();
+    } catch (error) {
+      console.error('Error signing out:', error);
+    } finally {
+      // reset state
+      setUser(null);
+      setProfile(null);
+      setIsGuestMode(false);
+      setShowWelcomeModal(true);
+      setShowSignUpPrompt(false);
       localStorage.removeItem('chessGameState');
-      localStorage.removeItem('chessStats');
+      localStorage.removeItem('chessStats'); 
       
       resetGame();
     }
@@ -168,7 +191,7 @@ function App() {
     setIsGuestMode(true);
     setShowWelcomeModal(false);
     setShowSignUpPrompt(false);
-    
+
     if (!stats) {
       const guestStats: GameStats = {
         username: 'Guest',
@@ -282,7 +305,7 @@ function App() {
 
     const game = gameRef.current;
     const possibleMoves = game.moves({ verbose: true });
-    
+
     if (game.isGameOver()) {
       setGameOver(true);
       if (game.isDraw()) {
@@ -308,7 +331,7 @@ function App() {
     aiMoveTimeoutRef.current = window.setTimeout(() => {
       const randomIndex = Math.floor(Math.random() * possibleMoves.length);
       const move = possibleMoves[randomIndex];
-      
+
       try {
         const result = game.move(move);
         if (result) {
@@ -393,7 +416,7 @@ function App() {
 
   function onSquareRightClick(square: Square) {
     if (isReplaying) return;
-    
+
     const colour = 'rgba(0, 0, 255, 0.4)';
     setRightClickedSquares({
       ...rightClickedSquares,
@@ -424,8 +447,8 @@ function App() {
     return (
       <div className={`min-h-screen ${isDarkMode ? 'bg-black' : 'bg-gradient-to-br from-blue-50 to-white'}`}>
         {showWelcomeModal && (
-          <WelcomeModal 
-            isDarkMode={isDarkMode} 
+          <WelcomeModal
+            isDarkMode={isDarkMode}
             onPlayAsGuest={handlePlayAsGuest}
           />
         )}
@@ -444,10 +467,10 @@ function App() {
   if (user && !profile) {
     return (
       <div className={`min-h-screen ${isDarkMode ? 'bg-black' : 'bg-gradient-to-br from-blue-50 to-white'}`}>
-        <ProfileSetup 
-          user={user} 
-          isDarkMode={isDarkMode} 
-          onComplete={() => window.location.reload()} 
+        <ProfileSetup
+          user={user}
+          isDarkMode={isDarkMode}
+          onComplete={() => window.location.reload()}
         />
       </div>
     );
@@ -456,10 +479,10 @@ function App() {
   return (
     <div className={`min-h-screen ${isDarkMode ? 'bg-black' : 'bg-gradient-to-br from-blue-50 to-white'} flex items-center justify-center px-2 py-4 sm:p-4`}>
       <div className={`${isDarkMode ? 'bg-gray-900' : 'bg-white'} p-4 sm:p-6 rounded-none sm:rounded-xl shadow-2xl w-full max-w-7xl`}>
-        <GameHeader 
-          stats={stats} 
-          onReset={resetGame} 
-          isDarkMode={isDarkMode} 
+        <GameHeader
+          stats={stats}
+          onReset={resetGame}
+          isDarkMode={isDarkMode}
           onThemeToggle={toggleTheme}
           playerIsWhite={playerIsWhite}
           user={user}
@@ -481,15 +504,15 @@ function App() {
                 isDarkMode={isDarkMode}
                 boardOrientation={playerIsWhite ? 'white' : 'black'}
               />
-              
+
               {gameOver && (
                 <GameOverModal gameResult={gameResult} onReset={resetGame} isDarkMode={isDarkMode} />
               )}
             </div>
 
-            <GameStatus 
-              isCheck={gameRef.current.isCheck()} 
-              turn={gameRef.current.turn()} 
+            <GameStatus
+              isCheck={gameRef.current.isCheck()}
+              turn={gameRef.current.turn()}
               isReplaying={isReplaying}
               isDarkMode={isDarkMode}
               playerIsWhite={playerIsWhite}
@@ -497,19 +520,19 @@ function App() {
           </div>
 
           <div className="lg:w-80">
-            <MoveLog 
-              moves={moves} 
-              currentPosition={gameRef.current.fen()} 
-              isDarkMode={isDarkMode} 
+            <MoveLog
+              moves={moves}
+              currentPosition={gameRef.current.fen()}
+              isDarkMode={isDarkMode}
             />
           </div>
         </div>
       </div>
 
       {showSignUpPrompt && (
-        <SignUpPromptModal 
-          isDarkMode={isDarkMode} 
-          onClose={() => setShowSignUpPrompt(false)} 
+        <SignUpPromptModal
+          isDarkMode={isDarkMode}
+          onClose={() => setShowSignUpPrompt(false)}
         />
       )}
     </div>
