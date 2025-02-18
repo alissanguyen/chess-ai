@@ -545,7 +545,7 @@ function App() {
           </div>
         </div>
 
-        <Footer isDarkMode={isDarkMode} user={user} />
+        <Footer isDarkMode={isDarkMode} />
       </div>
 
       {showSignUpPrompt && (
