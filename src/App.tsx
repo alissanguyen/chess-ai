@@ -82,11 +82,22 @@ function App() {
         setShowWelcomeModal(false);
         setIsGuestMode(false);
         setShowSignUpPrompt(false);
+        
+        // Keep the current game state when transitioning from guest to signed in
+        const currentGameState = {
+          fen: gameRef.current.fen(),
+          moves: moves
+        };
+        
+        // Save the current game state for the new user
+        if (currentGameState.moves.length > 0) {
+          saveGameState(currentGameState.fen, currentGameState.moves);
+        }
       }
     });
 
     return () => subscription.unsubscribe();
-  }, []);
+  }, [moves]);
 
   useEffect(() => {
     const fetchProfile = async () => {
