@@ -1,14 +1,15 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { Chess, Square, Move } from 'chess.js';
 import { User } from '@supabase/supabase-js';
 import { ChessBoard } from './components/ChessBoard';
 import { GameOverModal } from './components/GameOverModal';
-import { AuthModal } from './components/AuthModal';
 import { ProfileSetup } from './components/ProfileSetup';
 import { GameStatus } from './components/GameStatus';
 import { GameHeader } from './components/GameHeader';
 import { MoveLog } from './components/MoveLog';
-import { loadStats, saveStats, loadGameState, saveGameState } from './utils/localStorage';
+import { WelcomeModal } from './components/WelcomeModal';
+import { SignUpPromptModal } from './components/SignUpPromptModal';
+import { loadStats, saveStats, saveGameState } from './utils/localStorage';
 import { GameStats } from './types';
 import { supabase } from './lib/supabase';
 
@@ -23,21 +24,31 @@ interface Profile {
   win_rate: number;
 }
 
+// Memoize initial chess instance
+const createInitialGame = () => new Chess();
+
 function App() {
-  const [game, setGame] = useState(new Chess());
+  // Use useRef for values that shouldn't trigger re-renders
+  const gameRef = useRef(createInitialGame());
+  const [gameVersion, setGameVersion] = useState(0); // Used to force re-renders when needed
+  const saveTimeoutRef = useRef<number | null>(null);
+  const aiMoveTimeoutRef = useRef<number | null>(null);
+
   const [moveFrom, setMoveFrom] = useState<Square | null>(null);
   const [rightClickedSquares, setRightClickedSquares] = useState<{ [key: string]: { background: string } }>({});
   const [moveSquares] = useState({});
   const [optionSquares, setOptionSquares] = useState({});
   const [gameOver, setGameOver] = useState(false);
   const [gameResult, setGameResult] = useState<'win' | 'loss' | 'draw' | null>(null);
-  const [stats] = useState<GameStats | null>(loadStats());
-  const [showAuthModal, setShowAuthModal] = useState(false);
+  const [stats, setStats] = useState<GameStats | null>(loadStats());
+  const [showWelcomeModal, setShowWelcomeModal] = useState(true);
+  const [showSignUpPrompt, setShowSignUpPrompt] = useState(false);
+  const [isGuestMode, setIsGuestMode] = useState(false);
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [profileLoading, setProfileLoading] = useState(true);
   const [moves, setMoves] = useState<Move[]>([]);
-  const [isReplaying, setIsReplaying] = useState(false);
+  const [isReplaying] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(() => {
     const saved = localStorage.getItem('chessTheme');
     return saved ? saved === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches;
@@ -47,11 +58,21 @@ function App() {
     return saved ? saved === 'white' : true;
   });
 
+  // Cleanup timeouts on unmount
+  useEffect(() => {
+    return () => {
+      if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+      if (aiMoveTimeoutRef.current) clearTimeout(aiMoveTimeoutRef.current);
+    };
+  }, []);
+
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       setUser(session?.user ?? null);
       if (event === 'SIGNED_IN') {
-        setShowAuthModal(false);
+        setShowWelcomeModal(false);
+        setIsGuestMode(false);
+        setShowSignUpPrompt(false);
       }
     });
 
@@ -86,12 +107,6 @@ function App() {
   }, [user]);
 
   useEffect(() => {
-    if (!user) {
-      setShowAuthModal(true);
-    }
-  }, [user]);
-
-  useEffect(() => {
     localStorage.setItem('chessTheme', isDarkMode ? 'dark' : 'light');
   }, [isDarkMode]);
 
@@ -99,42 +114,29 @@ function App() {
     localStorage.setItem('chessPlayerColor', playerIsWhite ? 'white' : 'black');
   }, [playerIsWhite]);
 
-  useEffect(() => {
-    const savedState = loadGameState();
-    if (savedState) {
-      setIsReplaying(true);
-      const chess = new Chess();
-      const savedMoves: Move[] = [];
-      
-      let currentMove = 0;
-      const replayInterval = setInterval(() => {
-        if (currentMove < savedState.moves.length) {
-          try {
-            const move = chess.move(savedState.moves[currentMove]);
-            if (move) {
-              savedMoves.push(move);
-              setGame(new Chess(chess.fen()));
-              setMoves(savedMoves.slice());
-            }
-          } catch (error) {
-            console.error('Error replaying move:', error);
-          }
-          currentMove++;
-        } else {
-          clearInterval(replayInterval);
-          setIsReplaying(false);
-        }
-      }, 300);
-
-      return () => clearInterval(replayInterval);
+  // Optimized game state saving
+  const saveGameStateDebounced = useCallback((fen: string, moves: Move[]) => {
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
     }
+
+    saveTimeoutRef.current = window.setTimeout(() => {
+      requestAnimationFrame(() => {
+        saveGameState(fen, moves);
+        saveTimeoutRef.current = null;
+      });
+    }, 1000);
   }, []);
 
   useEffect(() => {
-    if (!isReplaying && moves.length > 0) {
-      saveGameState(game.fen(), moves);
+    if (!isReplaying && moves.length > 0 && user) {
+      saveGameStateDebounced(gameRef.current.fen(), moves);
     }
-  }, [game, moves, isReplaying]);
+
+    if (isGuestMode && !showSignUpPrompt && moves.length >= 20) {
+      setShowSignUpPrompt(true);
+    }
+  }, [moves, saveGameStateDebounced, isGuestMode, showSignUpPrompt, user, isReplaying]);
 
   useEffect(() => {
     if (stats) {
@@ -143,14 +145,63 @@ function App() {
   }, [stats]);
 
   const handleSignOut = async () => {
-    await supabase.auth.signOut();
+    try {
+      await supabase.auth.signOut();
+    } catch (error) {
+      console.error('Error signing out:', error);
+    } finally {
+      // Always clean up local state
+      setUser(null);
+      setProfile(null);
+      setIsGuestMode(false);
+      setShowWelcomeModal(true);
+      setShowSignUpPrompt(false);
+      
+      localStorage.removeItem('chessGameState');
+      localStorage.removeItem('chessStats');
+      
+      resetGame();
+    }
+  };
+
+  const handlePlayAsGuest = () => {
+    setIsGuestMode(true);
+    setShowWelcomeModal(false);
+    setShowSignUpPrompt(false);
+    
+    if (!stats) {
+      const guestStats: GameStats = {
+        username: 'Guest',
+        wins: 0,
+        losses: 0,
+        draws: 0,
+        lastUpdated: Date.now()
+      };
+      setStats(guestStats);
+      saveStats(guestStats);
+    }
   };
 
   const updateUserStats = async (result: 'win' | 'loss' | 'draw') => {
-    if (!user) return;
+    if (!user) {
+      const newStats = stats || {
+        username: 'Guest',
+        wins: 0,
+        losses: 0,
+        draws: 0,
+        lastUpdated: Date.now()
+      };
+
+      if (result === 'win') newStats.wins++;
+      else if (result === 'loss') newStats.losses++;
+      else newStats.draws++;
+
+      newStats.lastUpdated = Date.now();
+      setStats(newStats);
+      return;
+    }
 
     try {
-      // First, get the current stats
       const { data: currentStats, error: statsError } = await supabase
         .from('profiles')
         .select('win_count, loss_count, draw_count, longest_win_streak')
@@ -160,11 +211,9 @@ function App() {
       if (statsError) throw statsError;
       if (!currentStats) return;
 
-      // Calculate new streak based on the result
       let newStreak = currentStats.longest_win_streak;
       let currentWinStreak = 0;
 
-      // Get recent games to calculate current win streak
       const { data: recentGames, error: gamesError } = await supabase
         .from('game_history')
         .select('result')
@@ -173,7 +222,6 @@ function App() {
         .limit(100);
 
       if (!gamesError && recentGames) {
-        // Calculate current win streak
         for (const game of recentGames) {
           if (game.result === 'win') {
             currentWinStreak++;
@@ -183,7 +231,6 @@ function App() {
         }
       }
 
-      // Update streak for new win
       if (result === 'win') {
         currentWinStreak++;
         newStreak = Math.max(currentWinStreak, currentStats.longest_win_streak);
@@ -191,7 +238,6 @@ function App() {
         currentWinStreak = 0;
       }
 
-      // Prepare updates
       const updates = {
         win_count: currentStats.win_count + (result === 'win' ? 1 : 0),
         loss_count: currentStats.loss_count + (result === 'loss' ? 1 : 0),
@@ -200,7 +246,6 @@ function App() {
         updated_at: new Date().toISOString()
       };
 
-      // Update profile
       const { error: updateError } = await supabase
         .from('profiles')
         .update(updates)
@@ -208,7 +253,6 @@ function App() {
 
       if (updateError) throw updateError;
 
-      // Record game result in history
       const { error: historyError } = await supabase
         .from('game_history')
         .insert([{
@@ -219,7 +263,6 @@ function App() {
 
       if (historyError) throw historyError;
 
-      // Refresh profile data
       const { data: updatedProfile } = await supabase
         .from('profiles')
         .select('username, avatar_color, win_count, loss_count, draw_count, longest_win_streak, total_matches, win_rate')
@@ -237,7 +280,9 @@ function App() {
   const makeAIMove = useCallback(() => {
     if (isReplaying) return;
 
+    const game = gameRef.current;
     const possibleMoves = game.moves({ verbose: true });
+    
     if (game.isGameOver()) {
       setGameOver(true);
       if (game.isDraw()) {
@@ -256,30 +301,36 @@ function App() {
       return;
     }
 
-    const randomIndex = Math.floor(Math.random() * possibleMoves.length);
-    const move = possibleMoves[randomIndex];
-    
-    try {
-      const newGame = new Chess(game.fen());
-      const result = newGame.move(move);
-      if (result) {
-        setGame(newGame);
-        setMoves(prev => [...prev, result]);
-      }
-    } catch (error) {
-      console.error('Error making AI move:', error);
+    if (aiMoveTimeoutRef.current) {
+      clearTimeout(aiMoveTimeoutRef.current);
     }
-  }, [game, isReplaying, playerIsWhite]);
+
+    aiMoveTimeoutRef.current = window.setTimeout(() => {
+      const randomIndex = Math.floor(Math.random() * possibleMoves.length);
+      const move = possibleMoves[randomIndex];
+      
+      try {
+        const result = game.move(move);
+        if (result) {
+          setGameVersion(v => v + 1);
+          setMoves(prev => [...prev, result]);
+        }
+      } catch (error) {
+        console.error('Error making AI move:', error);
+      }
+      aiMoveTimeoutRef.current = null;
+    }, 300);
+  }, [isReplaying, playerIsWhite]);
 
   useEffect(() => {
-    const isPlayerTurn = (playerIsWhite && game.turn() === 'w') || (!playerIsWhite && game.turn() === 'b');
+    const isPlayerTurn = (playerIsWhite && gameRef.current.turn() === 'w') || (!playerIsWhite && gameRef.current.turn() === 'b');
     if (!isPlayerTurn && !isReplaying) {
-      setTimeout(makeAIMove, 300);
+      makeAIMove();
     }
-  }, [game, makeAIMove, isReplaying, playerIsWhite]);
+  }, [gameVersion, makeAIMove, isReplaying, playerIsWhite]);
 
   function getMoveOptions(square: Square) {
-    const moves = game.moves({
+    const moves = gameRef.current.moves({
       square,
       verbose: true
     });
@@ -292,7 +343,7 @@ function App() {
     moves.map((move) => {
       newSquares[move.to] = {
         background:
-          game.get(move.to) && game.get(move.to).color !== game.get(square).color
+          gameRef.current.get(move.to) && gameRef.current.get(move.to).color !== gameRef.current.get(square).color
             ? 'radial-gradient(circle, rgba(255,0,0,.1) 85%, transparent 85%)'
             : 'radial-gradient(circle, rgba(0,0,0,.1) 25%, transparent 25%)',
       };
@@ -306,7 +357,7 @@ function App() {
   }
 
   function onSquareClick(square: Square) {
-    const isPlayerTurn = (playerIsWhite && game.turn() === 'w') || (!playerIsWhite && game.turn() === 'b');
+    const isPlayerTurn = (playerIsWhite && gameRef.current.turn() === 'w') || (!playerIsWhite && gameRef.current.turn() === 'b');
     if (!isPlayerTurn || gameOver || isReplaying) return;
 
     setRightClickedSquares({});
@@ -318,15 +369,14 @@ function App() {
     }
 
     try {
-      const newGame = new Chess(game.fen());
-      const result = newGame.move({
+      const result = gameRef.current.move({
         from: moveFrom,
         to: square,
         promotion: 'q'
       });
 
       if (result) {
-        setGame(newGame);
+        setGameVersion(v => v + 1);
         setMoves(prev => [...prev, result]);
         setMoveFrom(null);
         setOptionSquares({});
@@ -355,8 +405,8 @@ function App() {
 
   function resetGame() {
     localStorage.removeItem('chessGameState');
-    const newGame = new Chess();
-    setGame(newGame);
+    gameRef.current = createInitialGame();
+    setGameVersion(v => v + 1);
     setGameOver(false);
     setGameResult(null);
     setMoveFrom(null);
@@ -370,20 +420,20 @@ function App() {
     setIsDarkMode(prev => !prev);
   };
 
-  if (!user) {
+  if (!user && !isGuestMode) {
     return (
       <div className={`min-h-screen ${isDarkMode ? 'bg-black' : 'bg-gradient-to-br from-blue-50 to-white'}`}>
-        {showAuthModal && (
-          <AuthModal 
+        {showWelcomeModal && (
+          <WelcomeModal 
             isDarkMode={isDarkMode} 
-            onClose={() => setShowAuthModal(false)} 
+            onPlayAsGuest={handlePlayAsGuest}
           />
         )}
       </div>
     );
   }
 
-  if (profileLoading) {
+  if (user && profileLoading) {
     return (
       <div className={`min-h-screen ${isDarkMode ? 'bg-black' : 'bg-gradient-to-br from-blue-50 to-white'} flex items-center justify-center`}>
         <div className="animate-spin rounded-full h-12 w-12 border-4 border-blue-500 border-t-transparent"></div>
@@ -421,7 +471,7 @@ function App() {
           <div className="flex-1">
             <div className="relative w-full">
               <ChessBoard
-                game={game}
+                game={gameRef.current}
                 onSquareClick={onSquareClick}
                 onSquareRightClick={onSquareRightClick}
                 moveSquares={moveSquares}
@@ -438,8 +488,8 @@ function App() {
             </div>
 
             <GameStatus 
-              isCheck={game.isCheck()} 
-              turn={game.turn()} 
+              isCheck={gameRef.current.isCheck()} 
+              turn={gameRef.current.turn()} 
               isReplaying={isReplaying}
               isDarkMode={isDarkMode}
               playerIsWhite={playerIsWhite}
@@ -449,12 +499,19 @@ function App() {
           <div className="lg:w-80">
             <MoveLog 
               moves={moves} 
-              currentPosition={game.fen()} 
+              currentPosition={gameRef.current.fen()} 
               isDarkMode={isDarkMode} 
             />
           </div>
         </div>
       </div>
+
+      {showSignUpPrompt && (
+        <SignUpPromptModal 
+          isDarkMode={isDarkMode} 
+          onClose={() => setShowSignUpPrompt(false)} 
+        />
+      )}
     </div>
   );
 }

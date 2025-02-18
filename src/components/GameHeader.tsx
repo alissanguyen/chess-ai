@@ -1,8 +1,9 @@
-import { Brain, RotateCcw, Sun, Moon, LogOut, Trophy, Target, Crown, Activity } from 'lucide-react';
+import { Brain, RotateCcw, Sun, Moon, LogOut, Trophy, Target, Medal, Percent, LogIn } from 'lucide-react';
 import { GameHeaderProps } from '../types';
 import { UserAvatar } from './UserAvatar';
 import { useState } from 'react';
 import { Leaderboard } from './Leaderboard';
+import { AuthModal } from './AuthModal';
 
 export function GameHeader({ 
   onReset, 
@@ -14,6 +15,7 @@ export function GameHeader({
   onSignOut
 }: GameHeaderProps) {
   const [showLeaderboard, setShowLeaderboard] = useState(false);
+  const [showAuthModal, setShowAuthModal] = useState(false);
 
   return (
     <>
@@ -45,7 +47,7 @@ export function GameHeader({
               <div className="sm:hidden w-full">
                 <div className={`grid grid-cols-3 gap-2 p-2 rounded-lg ${isDarkMode ? 'bg-gray-800' : 'bg-gray-100'}`}>
                   <div className="flex flex-col items-center justify-center p-2">
-                    <Crown className="w-4 h-4 text-yellow-500 mb-1" />
+                    <Trophy className="w-4 h-4 text-yellow-500 mb-1" />
                     <div className="text-center">
                       <p className="font-bold text-green-400">{profile.win_count}</p>
                       <p className="text-xs opacity-75">Wins</p>
@@ -59,7 +61,7 @@ export function GameHeader({
                     </div>
                   </div>
                   <div className="flex flex-col items-center justify-center p-2">
-                    <Activity className="w-4 h-4 text-purple-500 mb-1" />
+                    <Percent className="w-4 h-4 text-purple-500 mb-1" />
                     <div className="text-center">
                       <p className="font-bold text-blue-400">{profile.win_rate}%</p>
                       <p className="text-xs opacity-75">Rate</p>
@@ -67,8 +69,8 @@ export function GameHeader({
                   </div>
                 </div>
                 <div className={`mt-1 flex justify-center gap-4 text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                  <span>Loss: {profile.loss_count}</span>
-                  <span>Draw: {profile.draw_count}</span>
+                  <span>L: {profile.loss_count}</span>
+                  <span>D: {profile.draw_count}</span>
                   <span>Total: {profile.total_matches}</span>
                 </div>
               </div>
@@ -110,6 +112,19 @@ export function GameHeader({
               <RotateCcw className="w-4 h-4 mr-2" />
               <span>Reset</span>
             </button>
+            {!user && (
+              <button
+                onClick={() => setShowAuthModal(true)}
+                className={`flex items-center justify-center space-x-2 px-4 py-2 ${
+                  isDarkMode 
+                    ? 'bg-green-600 hover:bg-green-700' 
+                    : 'bg-green-500 hover:bg-green-600'
+                } text-white rounded-lg transition-colors duration-200 shadow-md hover:shadow-lg flex-1 sm:flex-none`}
+              >
+                <LogIn className="w-4 h-4 mr-2" />
+                <span>Sign In</span>
+              </button>
+            )}
             <button
               onClick={() => setShowLeaderboard(true)}
               className={`p-2 rounded-lg transition-all duration-200 ${
@@ -119,7 +134,7 @@ export function GameHeader({
               }`}
               title="View Leaderboard"
             >
-              <Trophy className="w-5 h-5" />
+              <Medal className="w-5 h-5" />
             </button>
             <button
               onClick={onThemeToggle}
@@ -157,6 +172,13 @@ export function GameHeader({
         <Leaderboard 
           isDarkMode={isDarkMode} 
           onClose={() => setShowLeaderboard(false)} 
+        />
+      )}
+
+      {showAuthModal && (
+        <AuthModal 
+          isDarkMode={isDarkMode} 
+          onClose={() => setShowAuthModal(false)} 
         />
       )}
     </>

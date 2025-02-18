@@ -21,29 +21,37 @@ export function Leaderboard({ isDarkMode, onClose }: LeaderboardProps) {
   const [byWinRate, setByWinRate] = useState<LeaderboardEntry[]>([]);
   const [byStreak, setByStreak] = useState<LeaderboardEntry[]>([]);
   const [activeTab, setActiveTab] = useState<'winrate' | 'streak'>('winrate');
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     async function fetchLeaderboards() {
       try {
-        // Fetch top 10 by win rate (minimum 5 games)
-        const { data: winRateData } = await supabase
+        setLoading(true);
+        setError(null);
+
+        // Use anon key for public access
+        const { data: winRateData, error: winRateError } = await supabase
           .from('profiles')
           .select('username, avatar_color, win_rate, longest_win_streak, total_matches')
           .gte('total_matches', 5)
           .order('win_rate', { ascending: false })
           .limit(10);
 
-        // Fetch top 10 by streak
-        const { data: streakData } = await supabase
+        if (winRateError) throw winRateError;
+
+        const { data: streakData, error: streakError } = await supabase
           .from('profiles')
           .select('username, avatar_color, win_rate, longest_win_streak, total_matches')
           .order('longest_win_streak', { ascending: false })
           .limit(10);
 
+        if (streakError) throw streakError;
+
         if (winRateData) setByWinRate(winRateData);
         if (streakData) setByStreak(streakData);
       } catch (error) {
         console.error('Error fetching leaderboard:', error);
+        setError('Unable to load leaderboard data. Please try again later.');
       } finally {
         setLoading(false);
       }
@@ -57,7 +65,7 @@ export function Leaderboard({ isDarkMode, onClose }: LeaderboardProps) {
       <div className={`${isDarkMode ? 'bg-gray-800' : 'bg-white'} p-4 sm:p-6 rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col`}>
         <div className="flex justify-between items-center mb-4">
           <h2 className={`text-xl sm:text-2xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
-            Leaderboard
+            Global Leaderboard
           </h2>
           <button
             onClick={onClose}
@@ -95,7 +103,11 @@ export function Leaderboard({ isDarkMode, onClose }: LeaderboardProps) {
           </button>
         </div>
 
-        {loading ? (
+        {error ? (
+          <div className={`flex items-center justify-center py-12 ${isDarkMode ? 'text-red-400' : 'text-red-600'}`}>
+            {error}
+          </div>
+        ) : loading ? (
           <div className="flex items-center justify-center py-12">
             <div className="animate-spin rounded-full h-12 w-12 border-4 border-blue-500 border-t-transparent"></div>
           </div>
