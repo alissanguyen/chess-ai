@@ -9,6 +9,7 @@ import { GameHeader } from './components/GameHeader';
 import { MoveLog } from './components/MoveLog';
 import { WelcomeModal } from './components/WelcomeModal';
 import { SignUpPromptModal } from './components/SignUpPromptModal';
+import { Footer } from './components/Footer';
 import { loadStats, saveStats, saveGameState } from './utils/localStorage';
 import { GameStats } from './types';
 import { supabase } from './lib/supabase';
@@ -493,7 +494,7 @@ function App() {
   }
 
   return (
-    <div className={`min-h-screen ${isDarkMode ? 'bg-black' : 'bg-gradient-to-br from-blue-50 to-white'} flex items-center justify-center px-2 py-4 sm:p-4`}>
+    <div className={`min-h-screen ${isDarkMode ? 'bg-black' : 'bg-gradient-to-br from-blue-50 to-white'} flex flex-col items-center justify-center px-2 py-4 sm:p-4`}>
       <div className={`${isDarkMode ? 'bg-gray-900' : 'bg-white'} p-4 sm:p-6 rounded-none sm:rounded-xl shadow-2xl w-full max-w-7xl`}>
         <GameHeader
           stats={stats}
@@ -543,6 +544,8 @@ function App() {
             />
           </div>
         </div>
+
+        <Footer isDarkMode={isDarkMode} user={user} />
       </div>
 
       {showSignUpPrompt && (
