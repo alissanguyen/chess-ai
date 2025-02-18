@@ -150,30 +150,74 @@ function App() {
     if (!user) return;
 
     try {
-      const { data: currentStats } = await supabase
+      // First, get the current stats
+      const { data: currentStats, error: statsError } = await supabase
         .from('profiles')
         .select('win_count, loss_count, draw_count, longest_win_streak')
         .eq('id', user.id)
         .single();
 
+      if (statsError) throw statsError;
       if (!currentStats) return;
 
+      // Calculate new streak based on the result
+      let newStreak = currentStats.longest_win_streak;
+      let currentWinStreak = 0;
+
+      // Get recent games to calculate current win streak
+      const { data: recentGames, error: gamesError } = await supabase
+        .from('game_history')
+        .select('result')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false })
+        .limit(100);
+
+      if (!gamesError && recentGames) {
+        // Calculate current win streak
+        for (const game of recentGames) {
+          if (game.result === 'win') {
+            currentWinStreak++;
+          } else {
+            break;
+          }
+        }
+      }
+
+      // Update streak for new win
+      if (result === 'win') {
+        currentWinStreak++;
+        newStreak = Math.max(currentWinStreak, currentStats.longest_win_streak);
+      } else {
+        currentWinStreak = 0;
+      }
+
+      // Prepare updates
       const updates = {
         win_count: currentStats.win_count + (result === 'win' ? 1 : 0),
         loss_count: currentStats.loss_count + (result === 'loss' ? 1 : 0),
         draw_count: currentStats.draw_count + (result === 'draw' ? 1 : 0),
-        longest_win_streak: result === 'win' 
-          ? Math.max(currentStats.longest_win_streak, currentStats.win_count + 1)
-          : currentStats.longest_win_streak,
+        longest_win_streak: newStreak,
         updated_at: new Date().toISOString()
       };
 
-      const { error } = await supabase
+      // Update profile
+      const { error: updateError } = await supabase
         .from('profiles')
         .update(updates)
         .eq('id', user.id);
 
-      if (error) throw error;
+      if (updateError) throw updateError;
+
+      // Record game result in history
+      const { error: historyError } = await supabase
+        .from('game_history')
+        .insert([{
+          user_id: user.id,
+          result,
+          current_streak: currentWinStreak
+        }]);
+
+      if (historyError) throw historyError;
 
       // Refresh profile data
       const { data: updatedProfile } = await supabase
