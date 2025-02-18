@@ -20,6 +20,7 @@ export function Leaderboard({ isDarkMode, onClose }: LeaderboardProps) {
   const [loading, setLoading] = useState(true);
   const [byWinRate, setByWinRate] = useState<LeaderboardEntry[]>([]);
   const [byStreak, setByStreak] = useState<LeaderboardEntry[]>([]);
+  const [activeTab, setActiveTab] = useState<'winrate' | 'streak'>('winrate');
 
   useEffect(() => {
     async function fetchLeaderboards() {
@@ -53,9 +54,9 @@ export function Leaderboard({ isDarkMode, onClose }: LeaderboardProps) {
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className={`${isDarkMode ? 'bg-gray-800' : 'bg-white'} p-6 rounded-xl shadow-2xl w-full max-w-4xl max-h-[80vh] overflow-hidden flex flex-col`}>
-        <div className="flex justify-between items-center mb-6">
-          <h2 className={`text-2xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+      <div className={`${isDarkMode ? 'bg-gray-800' : 'bg-white'} p-4 sm:p-6 rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col`}>
+        <div className="flex justify-between items-center mb-4">
+          <h2 className={`text-xl sm:text-2xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
             Leaderboard
           </h2>
           <button
@@ -68,6 +69,32 @@ export function Leaderboard({ isDarkMode, onClose }: LeaderboardProps) {
           </button>
         </div>
 
+        {/* Mobile Tabs */}
+        <div className="md:hidden flex mb-4">
+          <button
+            onClick={() => setActiveTab('winrate')}
+            className={`flex-1 flex items-center justify-center gap-2 p-2 border-b-2 ${
+              activeTab === 'winrate'
+                ? `${isDarkMode ? 'border-blue-400 text-blue-400' : 'border-blue-600 text-blue-600'}`
+                : `${isDarkMode ? 'border-gray-700 text-gray-400' : 'border-gray-200 text-gray-500'}`
+            }`}
+          >
+            <Trophy className="w-4 h-4" />
+            <span className="font-medium">Win Rate</span>
+          </button>
+          <button
+            onClick={() => setActiveTab('streak')}
+            className={`flex-1 flex items-center justify-center gap-2 p-2 border-b-2 ${
+              activeTab === 'streak'
+                ? `${isDarkMode ? 'border-blue-400 text-blue-400' : 'border-blue-600 text-blue-600'}`
+                : `${isDarkMode ? 'border-gray-700 text-gray-400' : 'border-gray-200 text-gray-500'}`
+            }`}
+          >
+            <Target className="w-4 h-4" />
+            <span className="font-medium">Streak</span>
+          </button>
+        </div>
+
         {loading ? (
           <div className="flex items-center justify-center py-12">
             <div className="animate-spin rounded-full h-12 w-12 border-4 border-blue-500 border-t-transparent"></div>
@@ -75,7 +102,7 @@ export function Leaderboard({ isDarkMode, onClose }: LeaderboardProps) {
         ) : (
           <div className="grid md:grid-cols-2 gap-6 overflow-y-auto">
             {/* Win Rate Leaders */}
-            <div className={`${isDarkMode ? 'bg-gray-900' : 'bg-gray-50'} p-4 rounded-lg`}>
+            <div className={`${isDarkMode ? 'bg-gray-900' : 'bg-gray-50'} p-4 rounded-lg ${activeTab === 'streak' ? 'hidden md:block' : ''}`}>
               <div className="flex items-center gap-2 mb-4">
                 <Trophy className="w-5 h-5 text-yellow-500" />
                 <h3 className={`text-lg font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
@@ -85,11 +112,11 @@ export function Leaderboard({ isDarkMode, onClose }: LeaderboardProps) {
                   (min. 5 games)
                 </span>
               </div>
-              <div className="space-y-3">
+              <div className="space-y-2">
                 {byWinRate.map((player, index) => (
                   <div
                     key={player.username}
-                    className={`flex items-center gap-3 p-2 rounded-lg ${
+                    className={`flex items-center gap-2 p-2 rounded-lg ${
                       isDarkMode ? 'bg-gray-800' : 'bg-white'
                     }`}
                   >
@@ -106,33 +133,35 @@ export function Leaderboard({ isDarkMode, onClose }: LeaderboardProps) {
                       color={player.avatar_color}
                       size="sm"
                     />
-                    <span className={`font-medium ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                    <span className={`font-medium truncate ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
                       {player.username}
                     </span>
-                    <span className={`ml-auto font-bold ${isDarkMode ? 'text-blue-400' : 'text-blue-600'}`}>
-                      {player.win_rate}%
-                    </span>
-                    <span className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                      ({player.total_matches} games)
-                    </span>
+                    <div className="ml-auto flex items-center gap-2 flex-shrink-0">
+                      <span className={`font-bold ${isDarkMode ? 'text-blue-400' : 'text-blue-600'}`}>
+                        {player.win_rate}%
+                      </span>
+                      <span className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                        ({player.total_matches})
+                      </span>
+                    </div>
                   </div>
                 ))}
               </div>
             </div>
 
             {/* Streak Leaders */}
-            <div className={`${isDarkMode ? 'bg-gray-900' : 'bg-gray-50'} p-4 rounded-lg`}>
+            <div className={`${isDarkMode ? 'bg-gray-900' : 'bg-gray-50'} p-4 rounded-lg ${activeTab === 'winrate' ? 'hidden md:block' : ''}`}>
               <div className="flex items-center gap-2 mb-4">
                 <Target className="w-5 h-5 text-blue-500" />
                 <h3 className={`text-lg font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
                   By Win Streak
                 </h3>
               </div>
-              <div className="space-y-3">
+              <div className="space-y-2">
                 {byStreak.map((player, index) => (
                   <div
                     key={player.username}
-                    className={`flex items-center gap-3 p-2 rounded-lg ${
+                    className={`flex items-center gap-2 p-2 rounded-lg ${
                       isDarkMode ? 'bg-gray-800' : 'bg-white'
                     }`}
                   >
@@ -149,15 +178,17 @@ export function Leaderboard({ isDarkMode, onClose }: LeaderboardProps) {
                       color={player.avatar_color}
                       size="sm"
                     />
-                    <span className={`font-medium ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                    <span className={`font-medium truncate ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
                       {player.username}
                     </span>
-                    <span className={`ml-auto font-bold ${isDarkMode ? 'text-blue-400' : 'text-blue-600'}`}>
-                      {player.longest_win_streak}
-                    </span>
-                    <span className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                      wins
-                    </span>
+                    <div className="ml-auto flex items-center gap-1 flex-shrink-0">
+                      <span className={`font-bold ${isDarkMode ? 'text-blue-400' : 'text-blue-600'}`}>
+                        {player.longest_win_streak}
+                      </span>
+                      <span className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                        wins
+                      </span>
+                    </div>
                   </div>
                 ))}
               </div>
