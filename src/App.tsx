@@ -207,6 +207,7 @@ function App() {
 
   const updateUserStats = async (result: 'win' | 'loss' | 'draw') => {
     if (!user) {
+      // Handle guest mode stats
       const newStats = stats || {
         username: 'Guest',
         wins: 0,
@@ -225,26 +226,32 @@ function App() {
     }
 
     try {
-      const { data: currentStats, error: statsError } = await supabase
-        .from('profiles')
-        .select('win_count, loss_count, draw_count, longest_win_streak')
-        .eq('id', user.id)
-        .single();
+      // First, get the current stats and recent games
+      const [statsResponse, gamesResponse] = await Promise.all([
+        supabase
+          .from('profiles')
+          .select('win_count, loss_count, draw_count, longest_win_streak')
+          .eq('id', user.id)
+          .single(),
+        supabase
+          .from('game_history')
+          .select('result')
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: false })
+          .limit(100)
+      ]);
 
-      if (statsError) throw statsError;
-      if (!currentStats) return;
+      if (statsResponse.error) throw statsResponse.error;
+      if (gamesResponse.error) throw gamesResponse.error;
 
-      let newStreak = currentStats.longest_win_streak;
+      const currentStats = statsResponse.data;
+      const recentGames = gamesResponse.data || [];
+
+      // Calculate current win streak
       let currentWinStreak = 0;
-
-      const { data: recentGames, error: gamesError } = await supabase
-        .from('game_history')
-        .select('result')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false })
-        .limit(100);
-
-      if (!gamesError && recentGames) {
+      if (result === 'win') {
+        currentWinStreak = 1; // Count the current win
+        // Add previous consecutive wins
         for (const game of recentGames) {
           if (game.result === 'win') {
             currentWinStreak++;
@@ -254,21 +261,16 @@ function App() {
         }
       }
 
-      if (result === 'win') {
-        currentWinStreak++;
-        newStreak = Math.max(currentWinStreak, currentStats.longest_win_streak);
-      } else {
-        currentWinStreak = 0;
-      }
-
+      // Prepare updates
       const updates = {
         win_count: currentStats.win_count + (result === 'win' ? 1 : 0),
         loss_count: currentStats.loss_count + (result === 'loss' ? 1 : 0),
         draw_count: currentStats.draw_count + (result === 'draw' ? 1 : 0),
-        longest_win_streak: newStreak,
+        longest_win_streak: Math.max(currentStats.longest_win_streak, currentWinStreak),
         updated_at: new Date().toISOString()
       };
 
+      // Update profile
       const { error: updateError } = await supabase
         .from('profiles')
         .update(updates)
@@ -276,6 +278,7 @@ function App() {
 
       if (updateError) throw updateError;
 
+      // Record game in history
       const { error: historyError } = await supabase
         .from('game_history')
         .insert([{
@@ -286,12 +289,14 @@ function App() {
 
       if (historyError) throw historyError;
 
-      const { data: updatedProfile } = await supabase
+      // Fetch updated profile
+      const { data: updatedProfile, error: profileError } = await supabase
         .from('profiles')
         .select('username, avatar_color, win_count, loss_count, draw_count, longest_win_streak, total_matches, win_rate')
         .eq('id', user.id)
         .single();
 
+      if (profileError) throw profileError;
       if (updatedProfile) {
         setProfile(updatedProfile);
       }
