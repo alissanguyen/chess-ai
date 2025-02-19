@@ -21,6 +21,7 @@ interface Profile {
   loss_count: number;
   draw_count: number;
   longest_win_streak: number;
+  current_win_streak: number;
   total_matches: number;
   win_rate: number;
 }
@@ -34,6 +35,7 @@ function App() {
   const [gameVersion, setGameVersion] = useState(0); // Used to force re-renders when needed
   const saveTimeoutRef = useRef<number | null>(null);
   const aiMoveTimeoutRef = useRef<number | null>(null);
+  const gameEndProcessedRef = useRef(false);
 
   const [moveFrom, setMoveFrom] = useState<Square | null>(null);
   const [rightClickedSquares, setRightClickedSquares] = useState<{ [key: string]: { background: string } }>({});
@@ -58,6 +60,13 @@ function App() {
     const saved = localStorage.getItem('chessPlayerColor');
     return saved ? saved === 'white' : true;
   });
+
+  // Reset game end processed flag when starting a new game
+  useEffect(() => {
+    if (!gameOver) {
+      gameEndProcessedRef.current = false;
+    }
+  }, [gameOver]);
 
   // Cleanup timeouts on unmount
   useEffect(() => {
@@ -111,7 +120,7 @@ function App() {
         setProfileLoading(true);
         const { data, error } = await supabase
           .from('profiles')
-          .select('username, avatar_color, win_count, loss_count, draw_count, longest_win_streak, total_matches, win_rate')
+          .select('username, avatar_color, win_count, loss_count, draw_count, longest_win_streak, current_win_streak, total_matches, win_rate')
           .eq('id', user.id)
           .maybeSingle();
 
@@ -218,6 +227,12 @@ function App() {
   };
 
   const updateUserStats = async (result: 'win' | 'loss' | 'draw') => {
+    // Prevent multiple updates for the same game end
+    if (gameEndProcessedRef.current) {
+      return;
+    }
+    gameEndProcessedRef.current = true;
+
     if (!user) {
       // Handle guest mode stats
       const newStats = stats || {
@@ -234,51 +249,35 @@ function App() {
 
       newStats.lastUpdated = Date.now();
       setStats(newStats);
+      saveStats(newStats);
       return;
     }
 
     try {
-      // First, get the current stats and recent games
-      const [statsResponse, gamesResponse] = await Promise.all([
-        supabase
-          .from('profiles')
-          .select('win_count, loss_count, draw_count, longest_win_streak')
-          .eq('id', user.id)
-          .single(),
-        supabase
-          .from('game_history')
-          .select('result')
-          .eq('user_id', user.id)
-          .order('created_at', { ascending: false })
-          .limit(100)
-      ]);
+      // Get current profile stats
+      const { data: currentProfile, error: profileError } = await supabase
+        .from('profiles')
+        .select('win_count, loss_count, draw_count, longest_win_streak, current_win_streak')
+        .eq('id', user.id)
+        .single();
 
-      if (statsResponse.error) throw statsResponse.error;
-      if (gamesResponse.error) throw gamesResponse.error;
+      if (profileError) throw profileError;
 
-      const currentStats = statsResponse.data;
-      const recentGames = gamesResponse.data || [];
-
-      // Calculate current win streak
-      let currentWinStreak = 0;
+      // Calculate new streak
+      let newCurrentStreak = currentProfile.current_win_streak || 0;
       if (result === 'win') {
-        currentWinStreak = 1; // Count the current win
-        // Add previous consecutive wins
-        for (const game of recentGames) {
-          if (game.result === 'win') {
-            currentWinStreak++;
-          } else {
-            break;
-          }
-        }
+        newCurrentStreak++;
+      } else {
+        newCurrentStreak = 0;
       }
 
-      // Prepare updates
+      // Prepare updates with current values
       const updates = {
-        win_count: currentStats.win_count + (result === 'win' ? 1 : 0),
-        loss_count: currentStats.loss_count + (result === 'loss' ? 1 : 0),
-        draw_count: currentStats.draw_count + (result === 'draw' ? 1 : 0),
-        longest_win_streak: Math.max(currentStats.longest_win_streak, currentWinStreak),
+        win_count: (currentProfile.win_count || 0) + (result === 'win' ? 1 : 0),
+        loss_count: (currentProfile.loss_count || 0) + (result === 'loss' ? 1 : 0),
+        draw_count: (currentProfile.draw_count || 0) + (result === 'draw' ? 1 : 0),
+        current_win_streak: newCurrentStreak,
+        longest_win_streak: Math.max(currentProfile.longest_win_streak || 0, newCurrentStreak),
         updated_at: new Date().toISOString()
       };
 
@@ -296,21 +295,24 @@ function App() {
         .insert([{
           user_id: user.id,
           result,
-          current_streak: currentWinStreak
+          current_streak: newCurrentStreak
         }]);
 
       if (historyError) throw historyError;
 
       // Fetch updated profile
-      const { data: updatedProfile, error: profileError } = await supabase
+      const { data: updatedProfile, error: refreshError } = await supabase
         .from('profiles')
-        .select('username, avatar_color, win_count, loss_count, draw_count, longest_win_streak, total_matches, win_rate')
+        .select('username, avatar_color, win_count, loss_count, draw_count, longest_win_streak, current_win_streak, total_matches, win_rate')
         .eq('id', user.id)
         .single();
 
-      if (profileError) throw profileError;
+      if (refreshError) throw refreshError;
+
+      // Update local state
       if (updatedProfile) {
         setProfile(updatedProfile);
+        console.log('Profile updated successfully:', updatedProfile);
       }
     } catch (error) {
       console.error('Error updating stats:', error);
@@ -360,7 +362,7 @@ function App() {
       }
       aiMoveTimeoutRef.current = null;
     }, 300);
-  }, [isReplaying, playerIsWhite]);
+  }, [isReplaying, playerIsWhite, updateUserStats]);
 
   useEffect(() => {
     const isPlayerTurn = (playerIsWhite && gameRef.current.turn() === 'w') || (!playerIsWhite && gameRef.current.turn() === 'b');
@@ -454,6 +456,7 @@ function App() {
     setOptionSquares({});
     setMoves([]);
     setPlayerIsWhite(prev => !prev);
+    gameEndProcessedRef.current = false;
   }
 
   const toggleTheme = () => {

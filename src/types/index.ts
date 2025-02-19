@@ -22,6 +22,7 @@ export interface Profile {
   loss_count: number;
   draw_count: number;
   longest_win_streak: number;
+  current_win_streak: number;
   total_matches: number;
   win_rate: number;
 }
