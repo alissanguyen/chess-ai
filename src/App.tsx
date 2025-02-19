@@ -254,48 +254,12 @@ function App() {
     }
 
     try {
-      // Get current profile stats
-      const { data: currentProfile, error: profileError } = await supabase
-        .from('profiles')
-        .select('win_count, loss_count, draw_count, longest_win_streak, current_win_streak')
-        .eq('id', user.id)
-        .single();
-
-      if (profileError) throw profileError;
-
-      // Calculate new streak
-      let newCurrentStreak = currentProfile.current_win_streak || 0;
-      if (result === 'win') {
-        newCurrentStreak++;
-      } else {
-        newCurrentStreak = 0;
-      }
-
-      // Prepare updates with current values
-      const updates = {
-        win_count: (currentProfile.win_count || 0) + (result === 'win' ? 1 : 0),
-        loss_count: (currentProfile.loss_count || 0) + (result === 'loss' ? 1 : 0),
-        draw_count: (currentProfile.draw_count || 0) + (result === 'draw' ? 1 : 0),
-        current_win_streak: newCurrentStreak,
-        longest_win_streak: Math.max(currentProfile.longest_win_streak || 0, newCurrentStreak),
-        updated_at: new Date().toISOString()
-      };
-
-      // Update profile
-      const { error: updateError } = await supabase
-        .from('profiles')
-        .update(updates)
-        .eq('id', user.id);
-
-      if (updateError) throw updateError;
-
-      // Record game in history
+      // Record game in history - triggers will handle all stats updates
       const { error: historyError } = await supabase
         .from('game_history')
         .insert([{
           user_id: user.id,
-          result,
-          current_streak: newCurrentStreak
+          result
         }]);
 
       if (historyError) throw historyError;
@@ -312,7 +276,6 @@ function App() {
       // Update local state
       if (updatedProfile) {
         setProfile(updatedProfile);
-        console.log('Profile updated successfully:', updatedProfile);
       }
     } catch (error) {
       console.error('Error updating stats:', error);
