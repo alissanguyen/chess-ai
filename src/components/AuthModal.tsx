@@ -14,28 +14,69 @@ export function AuthModal({ isDarkMode, onClose }: AuthModalProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const validateEmail = (email: string) => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
+  };
+
   const handleEmailAuth = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
     setError(null);
+
+    // Validate email format
+    if (!validateEmail(email)) {
+      setError('Please enter a valid email address');
+      return;
+    }
+
+    // Validate password
+    if (password.length < 6) {
+      setError('Password must be at least 6 characters long');
+      return;
+    }
+
+    setLoading(true);
 
     try {
       if (isSignUp) {
-        const { error } = await supabase.auth.signUp({
+        const { error: signUpError } = await supabase.auth.signUp({
           email,
           password,
+          options: {
+            emailRedirectTo: window.location.origin
+          }
         });
-        if (error) throw error;
+        
+        if (signUpError) {
+          if (signUpError.message.includes('already registered')) {
+            setError('This email is already registered. Please sign in instead.');
+          } else {
+            throw signUpError;
+          }
+          return;
+        }
+
+        onClose();
       } else {
-        const { error } = await supabase.auth.signInWithPassword({
+        const { error: signInError } = await supabase.auth.signInWithPassword({
           email,
           password,
         });
-        if (error) throw error;
+
+        if (signInError) {
+          if (signInError.message.includes('Invalid login credentials')) {
+            setError('Invalid email or password');
+          } else {
+            throw signInError;
+          }
+          return;
+        }
+
+        onClose();
       }
-      onClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred');
+      console.error('Auth error:', err);
+      setError(err instanceof Error ? err.message : 'An error occurred during authentication');
     } finally {
       setLoading(false);
     }
@@ -45,10 +86,14 @@ export function AuthModal({ isDarkMode, onClose }: AuthModalProps) {
     try {
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'github',
+        options: {
+          redirectTo: window.location.origin
+        }
       });
       if (error) throw error;
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred');
+      console.error('GitHub auth error:', err);
+      setError(err instanceof Error ? err.message : 'An error occurred with GitHub authentication');
     }
   };
 
@@ -70,7 +115,10 @@ export function AuthModal({ isDarkMode, onClose }: AuthModalProps) {
             <input
               type="email"
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              onChange={(e) => {
+                setEmail(e.target.value);
+                setError(null);
+              }}
               className={`w-full px-4 py-2 rounded-lg ${
                 isDarkMode 
                   ? 'bg-gray-700 border-gray-600 text-white' 
@@ -87,18 +135,24 @@ export function AuthModal({ isDarkMode, onClose }: AuthModalProps) {
             <input
               type="password"
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              onChange={(e) => {
+                setPassword(e.target.value);
+                setError(null);
+              }}
               className={`w-full px-4 py-2 rounded-lg ${
                 isDarkMode 
                   ? 'bg-gray-700 border-gray-600 text-white' 
                   : 'bg-white border-gray-300 text-gray-900'
               } border focus:ring-2 focus:ring-blue-500 focus:border-transparent`}
               required
+              minLength={6}
             />
           </div>
 
           {error && (
-            <p className="text-red-500 text-sm">{error}</p>
+            <div className="p-3 rounded-lg bg-red-100 border border-red-200 text-red-600">
+              {error}
+            </div>
           )}
 
           <button
@@ -106,9 +160,9 @@ export function AuthModal({ isDarkMode, onClose }: AuthModalProps) {
             disabled={loading}
             className={`w-full px-4 py-2 ${
               isDarkMode 
-                ? 'bg-blue-600 hover:bg-blue-700' 
-                : 'bg-blue-500 hover:bg-blue-600'
-            } text-white rounded-lg transition-colors flex items-center justify-center space-x-2`}
+                ? 'bg-blue-600 hover:bg-blue-700 disabled:bg-gray-700' 
+                : 'bg-blue-500 hover:bg-blue-600 disabled:bg-gray-300'
+            } text-white rounded-lg transition-colors flex items-center justify-center space-x-2 disabled:cursor-not-allowed`}
           >
             {loading ? (
               <Loader2 className="w-5 h-5 animate-spin" />
@@ -142,7 +196,10 @@ export function AuthModal({ isDarkMode, onClose }: AuthModalProps) {
         <p className={`mt-4 text-sm text-center ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
           {isSignUp ? 'Already have an account?' : "Don't have an account?"}{' '}
           <button
-            onClick={() => setIsSignUp(!isSignUp)}
+            onClick={() => {
+              setIsSignUp(!isSignUp);
+              setError(null);
+            }}
             className={`font-medium ${isDarkMode ? 'text-blue-400' : 'text-blue-600'} hover:underline`}
           >
             {isSignUp ? 'Sign In' : 'Sign Up'}
