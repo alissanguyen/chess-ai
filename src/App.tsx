@@ -9,6 +9,7 @@ import { GameHeader } from './components/GameHeader';
 import { MoveLog } from './components/MoveLog';
 import { WelcomeModal } from './components/WelcomeModal';
 import { SignUpPromptModal } from './components/SignUpPromptModal';
+import { PawnPromotionDialog } from './components/PawnPromotionDialog';
 import { Footer } from './components/Footer';
 import { loadStats, saveStats, saveGameState } from './utils/localStorage';
 import { GameStats } from './types';
@@ -24,6 +25,11 @@ interface Profile {
   current_win_streak: number;
   total_matches: number;
   win_rate: number;
+}
+
+interface PendingPromotion {
+  from: Square;
+  to: Square;
 }
 
 // Memoize initial chess instance
@@ -52,6 +58,7 @@ function App() {
   const [profileLoading, setProfileLoading] = useState(true);
   const [moves, setMoves] = useState<Move[]>([]);
   const [isReplaying] = useState(false);
+  const [pendingPromotion, setPendingPromotion] = useState<PendingPromotion | null>(null);
   const [isDarkMode, setIsDarkMode] = useState(() => {
     const saved = localStorage.getItem('chessTheme');
     return saved ? saved === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches;
@@ -315,7 +322,15 @@ function App() {
       const move = possibleMoves[randomIndex];
 
       try {
-        const result = game.move(move);
+        // For AI moves, randomly choose promotion piece
+        const promotionPieces = ['q', 'r', 'b', 'n'];
+        const result = game.move({
+          ...move,
+          promotion: move.flags.includes('p') 
+            ? promotionPieces[Math.floor(Math.random() * promotionPieces.length)] as 'q' | 'r' | 'b' | 'n'
+            : undefined
+        });
+        
         if (result) {
           setGameVersion(v => v + 1);
           setMoves(prev => [...prev, result]);
@@ -361,6 +376,29 @@ function App() {
     return true;
   }
 
+  const handlePromotion = (piece: 'q' | 'r' | 'b' | 'n') => {
+    if (!pendingPromotion) return;
+
+    try {
+      const result = gameRef.current.move({
+        from: pendingPromotion.from,
+        to: pendingPromotion.to,
+        promotion: piece
+      });
+
+      if (result) {
+        setGameVersion(v => v + 1);
+        setMoves(prev => [...prev, result]);
+      }
+    } catch (error) {
+      console.error('Error making promotion move:', error);
+    }
+
+    setPendingPromotion(null);
+    setMoveFrom(null);
+    setOptionSquares({});
+  };
+
   function onSquareClick(square: Square) {
     const isPlayerTurn = (playerIsWhite && gameRef.current.turn() === 'w') || (!playerIsWhite && gameRef.current.turn() === 'b');
     if (!isPlayerTurn || gameOver || isReplaying) return;
@@ -370,6 +408,18 @@ function App() {
     if (!moveFrom) {
       const hasMoves = getMoveOptions(square);
       if (hasMoves) setMoveFrom(square);
+      return;
+    }
+
+    // Check if move would result in pawn promotion
+    const piece = gameRef.current.get(moveFrom);
+    const isPromotion = piece?.type === 'p' && (
+      (piece.color === 'w' && square[1] === '8') ||
+      (piece.color === 'b' && square[1] === '1')
+    );
+
+    if (isPromotion) {
+      setPendingPromotion({ from: moveFrom, to: square });
       return;
     }
 
@@ -418,6 +468,7 @@ function App() {
     setRightClickedSquares({});
     setOptionSquares({});
     setMoves([]);
+    setPendingPromotion(null);
     setPlayerIsWhite(prev => !prev);
     gameEndProcessedRef.current = false;
   }
@@ -487,6 +538,14 @@ function App() {
                 isDarkMode={isDarkMode}
                 boardOrientation={playerIsWhite ? 'white' : 'black'}
               />
+
+              {pendingPromotion && (
+                <PawnPromotionDialog
+                  isDarkMode={isDarkMode}
+                  onSelect={handlePromotion}
+                  playerColor={playerIsWhite ? 'w' : 'b'}
+                />
+              )}
 
               {gameOver && (
                 <GameOverModal gameResult={gameResult} onReset={resetGame} isDarkMode={isDarkMode} />
