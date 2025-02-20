@@ -1,6 +1,7 @@
 import { Chessboard } from 'react-chessboard';
 import { ChessBoardProps } from '../types';
 import { useEffect, useState } from 'react';
+import { Square } from 'chess.js';
 
 export function ChessBoard({
   game,
@@ -31,6 +32,43 @@ export function ChessBoard({
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
+  // Validate moves using chess.js before allowing the piece to drop
+  const onPieceDrop = (sourceSquare: Square, targetSquare: Square, piece: string) => {
+    try {
+      // Check if it's a valid move
+      const move = game.move({
+        from: sourceSquare,
+        to: targetSquare,
+        // Only set promotion if it's a pawn moving to the last rank
+        promotion: piece.toLowerCase().includes('p') && 
+          ((piece[0] === 'w' && targetSquare[1] === '8') || 
+           (piece[0] === 'b' && targetSquare[1] === '1')) 
+          ? 'q' 
+          : undefined
+      });
+
+      // If move is invalid, chess.js will return null
+      if (move === null) return false;
+
+      // Undo the move since we're handling it through the click handler
+      game.undo();
+      
+      return true;
+    } catch (error) {
+      console.error('Error validating move:', error);
+      return false;
+    }
+  };
+
+  // Check if a move results in a pawn promotion
+  const onPromotionCheck = (sourceSquare: Square, targetSquare: Square, piece: string) => {
+    return (
+      ((piece === "wP" && sourceSquare[1] === "7" && targetSquare[1] === "8") || 
+       (piece === "bP" && sourceSquare[1] === "2" && targetSquare[1] === "1")) && 
+      Math.abs(sourceSquare.charCodeAt(0) - targetSquare.charCodeAt(0)) <= 1
+    );
+  };
+
   return (
     <div className="chess-container relative w-full">
       <div 
@@ -56,6 +94,8 @@ export function ChessBoard({
           position={game.fen()}
           onSquareClick={onSquareClick}
           onSquareRightClick={onSquareRightClick}
+          onPieceDrop={onPieceDrop}
+          onPromotionCheck={onPromotionCheck}
           boardOrientation={boardOrientation}
           customBoardStyle={{
             borderRadius: '4px',
